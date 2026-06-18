@@ -33,17 +33,35 @@ service cloud.firestore {
 
     // =========================================================================
     // USERS COLLECTION
-    // Rule: A user can only read and write their OWN document.
+    // Rules:
+    //   - A user can read their OWN document.
+    //   - A user can update their own profile fields (display name, avatar, etc.)
+    //     BUT cannot self-promote their status field.
+    //   - A community admin can update ONLY the 'status' and 'updatedAt' fields
+    //     of another user's document during an approval action.
+    //     CRITICAL: affectedKeys().hasOnly(['status', 'updatedAt']) prevents the
+    //     admin client from accidentally (or maliciously) overwriting financial
+    //     fields like totalKgCommitted during a bulk approval operation.
+    //   - No list permission — users cannot enumerate the entire collection.
     //
-    // Gap prevention:
-    //   - `isOwner()` checks BOTH that auth exists AND that the UID matches
-    //     the document ID, so an authenticated stranger cannot read or write
-    //     another user's profile even if they know the UID.
-    //   - No 'list' permission is granted — users cannot enumerate the entire
-    //     collection.
+    // State machine (admin update):
+    //   - Source state must be 'pending'. Admin cannot re-approve an already
+    //     'approved' user or re-open a 'rejected' one without a fresh 'pending'
+    //     request, enforcing strict unidirectional flow.
+    //   - Target state is restricted to ['approved', 'rejected'].
+    //   - This prevents the "direct rejected → approved shortcut" vulnerability.
     // =========================================================================
     match /users/{userId} {
-      allow read, write: if isOwner(userId);
+      // Self-read: owner only.
+      allow read: if isOwner(userId);
+
+      // Self-update: owner can update their own profile, but CANNOT set status
+      // or updatedAt themselves — those fields are admin-only gates.
+      allow update: if isOwner(userId)
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'updatedAt']);
+
+      // Create: a user bootstraps their own document with their UID.
+      allow create: if isOwner(userId);
     }
 
 

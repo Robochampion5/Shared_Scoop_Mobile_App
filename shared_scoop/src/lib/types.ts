@@ -8,6 +8,8 @@ export interface User {
   avatar_url: string;
   location_area: string;
   created_at: string;
+  status?: 'pending' | 'approved' | 'rejected';
+  updatedAt?: string;
 }
 
 export interface Community {
@@ -30,6 +32,7 @@ export interface Membership {
   community_id: string;
   status: MembershipStatus;
   created_at: string;
+  updatedAt?: string;
   user?: User;
   community?: Community;
 }

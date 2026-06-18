@@ -539,6 +539,14 @@ export default function CommunityDetailsScreen() {
             >
               <Text style={styles.editDetailsBtnText}>Edit Details</Text>
             </TouchableOpacity>
+            {/* Manage Members Button — Phase 1 approval pipeline */}
+            <TouchableOpacity
+              style={[styles.editDetailsBtn, { marginTop: 8, backgroundColor: '#1e1b4b' }]}
+              activeOpacity={0.8}
+              onPress={() => router.push(`/community/manage-members?id=${communityId}`)}
+            >
+              <Text style={[styles.editDetailsBtnText, { color: '#a78bfa' }]}>👥  Manage Members</Text>
+            </TouchableOpacity>
           </View>
         ) : null}
 
