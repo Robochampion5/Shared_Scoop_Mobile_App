@@ -1,5 +1,7 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { initializeAuth, getReactNativePersistence } from "firebase/auth";
+import { Platform } from 'react-native';
+import { initializeAuth as initializeAuthWeb } from "firebase/auth";
+import { initializeAuth, getReactNativePersistence } from "firebase/auth/react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 
@@ -16,10 +18,15 @@ const firebaseConfig = {
 // 1. Explicitly initialize and assign 'app' safely to handle Fast Refresh re-runs
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-// 2. Initialize Auth with the mobile-native persistence layer from Task 1
-const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(AsyncStorage),
-});
+// 2. Initialize Auth cross-platform
+let auth: any;
+if (Platform.OS !== 'web') {
+  auth = initializeAuth(app, {
+    persistence: getReactNativePersistence(AsyncStorage),
+  });
+} else {
+  auth = initializeAuthWeb(app);
+}
 
 // 3. Initialize Firestore with the optimized persistent local cache configuration
 const db = initializeFirestore(app, {

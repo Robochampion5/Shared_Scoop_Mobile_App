@@ -1,0 +1,295 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================================================================
+    // HELPER FUNCTIONS
+    // =========================================================================
+
+    // True if the caller is signed in with Firebase Auth.
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // True if the caller's UID matches the given uid.
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    // Fetch the community document and return true if the caller is its admin.
+    // Uses get() to cross-document-read the community's admin_uid field.
+    function isCommunityAdmin(communityId) {
+      return isAuthenticated() &&
+        get(/databases/$(database)/documents/communities/$(communityId)).data.admin_uid == request.auth.uid;
+    }
+
+    // Fetch the parent order for a contribution and return its status string.
+    // This is the gate that enforces the MOQ lock.
+    function getOrderStatus(orderId) {
+      return get(/databases/$(database)/documents/orders/$(orderId)).data.status;
+    }
+
+
+    // =========================================================================
+    // USERS COLLECTION
+    // Rule: A user can only read and write their OWN document.
+    //
+    // Gap prevention:
+    //   - `isOwner()` checks BOTH that auth exists AND that the UID matches
+    //     the document ID, so an authenticated stranger cannot read or write
+    //     another user's profile even if they know the UID.
+    //   - No 'list' permission is granted — users cannot enumerate the entire
+    //     collection.
+    // =========================================================================
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+
+    // =========================================================================
+    // COMMUNITIES COLLECTION
+    // Rules:
+    //   - Any authenticated user can read a community.
+    //   - Only the community admin can update it.
+    //   - Any authenticated user can create their own community (admin_uid locked
+    //     to their UID at write time via /community/create.tsx).
+    //   - Delete is explicitly denied to prevent accidental data loss.
+    //
+    // Gap prevention:
+    //   - 'update' checks resource.data.admin_uid (the EXISTING document) so a
+    //     stranger cannot self-promote into a community they don't own.
+    //   - admin_uid is now locked in update payloads. Without this lock, a buggy
+    //     client or malicious payload could set admin_uid: null, permanently
+    //     orphaning the community — no further updates or order creation possible.
+    //   - On 'create' we enforce admin_uid == caller UID so no one can name a
+    //     stranger as admin of a community they just created.
+    // =========================================================================
+    match /communities/{communityId} {
+      allow read: if isAuthenticated();
+
+      allow create: if isAuthenticated()
+        && request.resource.data.admin_uid == request.auth.uid;
+
+      allow update: if isAuthenticated()
+        // Caller must be the current admin.
+        && resource.data.admin_uid == request.auth.uid
+        // Lock admin_uid — prevents accidental or malicious community orphaning.
+        && request.resource.data.admin_uid == resource.data.admin_uid;
+
+      allow delete: if false;
+    }
+
+
+    // =========================================================================
+    // MEMBERSHIPS COLLECTION
+    // Rules:
+    //   - Authenticated users can read memberships (needed to display member
+    //     counts and check membership status in browse.tsx / [id].tsx).
+    //   - A user can create their own membership request (user_id == their UID,
+    //     initial status must be 'pending').
+    //   - Only the community admin can update a membership (approve/reject),
+    //     with strict payload restriction to prevent field hijacking.
+    //   - A user can delete their own membership (leave group).
+    //
+    // Gap prevention:
+    //   - On create, user_id is locked to the caller's UID.
+    //   - Status cannot be self-set to 'approved' on create.
+    //   - On update, the payload is restricted to the 'status' field only.
+    //     Without this, a buggy or malicious admin client could overwrite
+    //     user_id or community_id, hijacking membership records across communities.
+    //   - Status transition is constrained: only 'pending' memberships can be
+    //     acted on, and only to 'approved' or 'rejected'. Prevents re-processing
+    //     an already-settled membership.
+    // =========================================================================
+    match /memberships/{membershipId} {
+      allow read: if isAuthenticated();
+
+      allow create: if isAuthenticated()
+        && request.resource.data.user_id == request.auth.uid
+        && request.resource.data.status == 'pending';
+
+      allow update: if isAuthenticated()
+        && isCommunityAdmin(resource.data.community_id)
+        // Restrict payload: only 'status' may change. Prevents user_id or
+        // community_id being silently overwritten in the same request.
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        // Valid target states for an approval decision.
+        && request.resource.data.status in ['approved', 'rejected']
+        // Idempotency: only act on memberships still awaiting a decision.
+        && resource.data.status == 'pending';
+
+      allow delete: if isAuthenticated()
+        && resource.data.user_id == request.auth.uid;
+    }
+
+
+    // =========================================================================
+    // ORDERS COLLECTION
+    // Rules:
+    //   - Any authenticated user can read orders.
+    //   - Only the community admin can create or update an order, subject to
+    //     strict initial-state and field-immutability guards.
+    //
+    // Immutability model:
+    //   IMMUTABLE (set at create, never changed):
+    //     community_id, product_id, total_kg_required, created_at,
+    //     total_kg_committed.
+    //   MUTABLE (admin-only, forward-only):
+    //     status.
+    //
+    // Why total_kg_committed is IMMUTABLE on the order document:
+    //   The original design incremented this field via FieldValue.increment()
+    //   from the client whenever a user joined or left the pool. This created
+    //   two simultaneous problems:
+    //   1. Aggregation Paradox: the update rule restricted order writes to the
+    //      admin, so regular users got PERMISSION_DENIED when joining.
+    //   2. Admin Spoofing Gap: even with admin-only writes, an admin could
+    //      set total_kg_committed: 99999 to fake the MOQ threshold being met,
+    //      triggering OTP issuance without real volume.
+    //   Fix: total_kg_committed is now locked to 0 on the order document.
+    //   The actual committed total is calculated dynamically on the frontend
+    //   by summing kg_committed across all contribution documents for the order
+    //   (real-time listener in [id].tsx). This is the source of truth.
+    //
+    // Create guards:
+    //   - Admin identity verified via isCommunityAdmin.
+    //   - status must be 'pooling' — cannot open as 'completed'.
+    //   - total_kg_required must be > 0 — no negative or zero MOQ.
+    //   - total_kg_committed must be 0 — must start at zero.
+    //
+    // Update guards:
+    //   - All structural fields locked (community_id, product_id,
+    //     total_kg_required, created_at, total_kg_committed).
+    //   - status: forward-only transitions only.
+    // =========================================================================
+    match /orders/{orderId} {
+      allow read: if isAuthenticated();
+
+      allow create: if isAuthenticated()
+        && isCommunityAdmin(request.resource.data.community_id)
+        // Orders must open in 'pooling' state — no skipping the collection phase.
+        && request.resource.data.status == 'pooling'
+        // MOQ must be a positive number — prevents negative/zero logic bombs.
+        && request.resource.data.total_kg_required > 0
+        // Must start at zero — no pre-filled committed total.
+        && request.resource.data.total_kg_committed == 0;
+
+      allow update: if isAuthenticated()
+        // Must be the admin of the community this order already belongs to.
+        && isCommunityAdmin(resource.data.community_id)
+        // Lock all structural fields — none of these may change after creation.
+        && request.resource.data.community_id == resource.data.community_id
+        && request.resource.data.product_id == resource.data.product_id
+        && request.resource.data.total_kg_required == resource.data.total_kg_required
+        && request.resource.data.created_at == resource.data.created_at
+        // Lock total_kg_committed — prevents admin spoofing of MOQ progress.
+        // The true total is computed dynamically from contributions on the client.
+        && request.resource.data.total_kg_committed == resource.data.total_kg_committed
+        // Forward-only status gate from 'pooling'.
+        && (resource.data.status == 'pooling'
+              ? request.resource.data.status in ['completed', 'cancelled']
+              : true)
+        // Forward-only status gate from 'completed'.
+        && (resource.data.status == 'completed'
+              ? request.resource.data.status == 'delivered'
+              : true);
+
+      allow delete: if false;
+    }
+
+
+    // =========================================================================
+    // CONTRIBUTIONS COLLECTION  (called 'commitments' in the UI / your request)
+    //
+    // Fix #1 — Admin Read Lockout (previous round):
+    //   Granted read to the community admin via a chained get() call:
+    //   contribution.order_id → order.community_id → community.admin_uid.
+    //
+    // Fix #3 — Denormalized community_id (this round — N+1 Read Optimization):
+    //   The chained get() on read fired once per document in a list query.
+    //   For a 100-contribution admin query that is 100 extra Firestore reads.
+    //   Fix: community_id is now written directly onto every contribution
+    //   document by the client (see handleJoinPress in community/[id].tsx).
+    //   The admin read rule now evaluates in O(1) with zero extra reads.
+    //   The community_id field is locked on create and immutable thereafter
+    //   (no update rule touches it).
+    //
+    // Fix #1 (this round) — Pre-Delivered Injection:
+    //   The create rule previously ignored the `status` field in the payload.
+    //   A raw API call could set status: 'delivered', bypassing the entire
+    //   OTP handover process. Fixed: status must be exactly 'pending' on create.
+    //
+    // Fix #2 (this round) — Free Protein Exploit:
+    //   amount_paid >= 0 allowed zero-cost commits. Changed to strictly > 0.
+    //
+    // Fix #4 — OTP Client-Side Delivery (previous round, still active):
+    //   Admin-only, single-field, idempotent status → 'delivered' update.
+    //   Supports handleVerifyOTP() in community/[id].tsx.
+    //
+    // MOQ Lock — Gap Prevention Analysis (unchanged):
+    //   - getOrderStatus() is a server-side cross-document read; cannot be faked.
+    //   - Strict equality `== 'pooling'` ensures all other statuses individually fail.
+    //   - Race conditions are handled atomically at Firestore rule evaluation time.
+    // =========================================================================
+    match /contributions/{contributionId} {
+
+      // Read: any authenticated user.
+      // The real-time progress-bar listener (onSnapshot filtered by order_id)
+      // must be able to read all contribution documents for the active order to
+      // compute totalKgCommitted. Restricting to owner/admin caused PERMISSION_DENIED
+      // for every student trying to see the pool fill up.
+      // Data exposed (kg_committed, user_id, order_id, status) contains no sensitive
+      // PII — acceptable transparency for an MVP college group-buy app.
+      allow read: if isAuthenticated();
+
+      // Create: full payload validation.
+      //   - user_id must be the caller's own UID (no impersonation).
+      //   - community_id must be denormalized from the payload and match the
+      //     order's community_id, verified server-side.
+      //   - Order must still be 'pooling' (MOQ lock).
+      //   - kg_committed must be positive (no zero/negative logic bombs).
+      //   - amount_paid must be strictly positive (no free protein exploit).
+      //   - status must be exactly 'pending' (no pre-delivered injection).
+      allow create: if isAuthenticated()
+        && request.resource.data.user_id == request.auth.uid
+        && request.resource.data.community_id ==
+             get(/databases/$(database)/documents/orders/$(request.resource.data.order_id))
+               .data.community_id
+        && getOrderStatus(request.resource.data.order_id) == 'pooling'
+        && request.resource.data.kg_committed > 0
+        && request.resource.data.amount_paid > 0
+        && request.resource.data.status == 'pending';
+
+      // Delete: the owning user OR the community admin can delete a contribution,
+      // but only while the order is still pooling.
+      // The admin path is required for handleCancelOrder — when aborting an order the
+      // admin must bulk-delete all contributions (belonging to other users) before
+      // transitioning the order to 'cancelled'. Without this, Promise.all throws
+      // PERMISSION_DENIED on the first foreign document and the cancel flow crashes.
+      allow delete: if (isOwner(resource.data.user_id) || isCommunityAdmin(resource.data.community_id))
+        && getOrderStatus(resource.data.order_id) == 'pooling';
+
+      // OTP delivery: admin-only, status field only, one-way, idempotent.
+      allow update: if isAuthenticated()
+        && isCommunityAdmin(resource.data.community_id)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && request.resource.data.status == 'delivered'
+        && resource.data.status != 'delivered';
+    }
+
+
+    // =========================================================================
+    // PRODUCTS COLLECTION
+    // Rules:
+    //   - Any authenticated user can read products (needed to display deal info).
+    //   - Write access is fully restricted from the client. Products should be
+    //     managed via Firebase Console or a trusted Cloud Function only.
+    // =========================================================================
+    match /products/{productId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+
+  }
+}

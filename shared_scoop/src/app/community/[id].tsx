@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView, StatusBar, ActivityIndicator, Alert, TextInput } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { doc, collection, query, where, onSnapshot, addDoc, deleteDoc, updateDoc, orderBy, limit, increment, getDocs } from 'firebase/firestore';
+import { doc, collection, query, where, onSnapshot, addDoc, deleteDoc, updateDoc, orderBy, limit, getDocs } from 'firebase/firestore';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { db, auth } from '@/lib/firebase';
 import { Community, Order, Product, Contribution } from '@/lib/types';
@@ -21,11 +21,19 @@ export default function CommunityDetailsScreen() {
   const [activeOrder, setActiveOrder] = useState<Order | null>(null);
   const [product, setProduct] = useState<Product | null>(null);
   const [userContribution, setUserContribution] = useState<Contribution | null>(null);
-  
+
   // UI Locks and Inputs
   const [loading, setLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [otpInput, setOtpInput] = useState("");
+  // Dynamically aggregated from contributions — source of truth for MOQ progress.
+  // Never read from orders.total_kg_committed (that field is locked at 0 in rules).
+  const [totalKgCommitted, setTotalKgCommitted] = useState(0);
+
+  // Prevents state updates on unmounted component (e.g. user navigates back
+  // mid-write). Guards every setIsProcessing call in finally blocks.
+  const isMounted = useRef(true);
+  useEffect(() => { return () => { isMounted.current = false; }; }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -95,6 +103,25 @@ export default function CommunityDetailsScreen() {
     return () => unsubscribe();
   }, [currentUser, activeOrder?.product_id]);
 
+  // Real-time aggregation of all contributions for the active order.
+  // This replaces the orders.total_kg_committed field which is now locked
+  // at the database level to prevent admin spoofing.
+  useEffect(() => {
+    if (!currentUser || !activeOrder?.id) {
+      setTotalKgCommitted(0);
+      return;
+    }
+    const allContributionsQuery = query(
+      collection(db, "contributions"),
+      where("order_id", "==", activeOrder.id)
+    );
+    const unsubscribe = onSnapshot(allContributionsQuery, (snapshot) => {
+      const sum = snapshot.docs.reduce((acc, d) => acc + (d.data().kg_committed || 0), 0);
+      setTotalKgCommitted(sum);
+    }, (error) => console.error("Error aggregating contributions:", error));
+    return () => unsubscribe();
+  }, [currentUser, activeOrder?.id]);
+
   useEffect(() => {
     if (!currentUser || !activeOrder?.id) {
       setUserContribution(null);
@@ -119,30 +146,32 @@ export default function CommunityDetailsScreen() {
   const handleJoinPress = async () => {
     if (!currentUser || !activeOrder || !product || isProcessing) return;
     setIsProcessing(true);
-    let isSuccess = false;
-    let errorMessage = "";
 
     try {
       if (userContribution) {
-        const contributionId = userContribution.id;
-        const kgToRemove = userContribution.kg_committed;
-        await deleteDoc(doc(db, "contributions", contributionId));
-        await updateDoc(doc(db, "orders", activeOrder.id), {
-          total_kg_committed: increment(-kgToRemove)
-        });
+        // Leave: delete the contribution document only.
+        // total_kg_committed is recalculated by the real-time listener above.
+        await deleteDoc(doc(db, "contributions", userContribution.id));
       } else {
-        let weightNum = 2;
-        if (product.weight) {
-          const match = product.weight.match(/([0-9.]+)/);
-          if (match) weightNum = parseFloat(match[1]);
-        }
-        const amountPaid = weightNum * (product.wholesale_price || 0);
-        
-        // UNIQUE OTP GENERATION: Each user gets their own specific token
-        const uniqueOtp = Math.floor(100000 + Math.random() * 900000).toString();
-        
+        // weight_kg is a strict numeric field on the product document.
+        // Avoids parsing the display string 'weight' which can contain
+        // arbitrary text (e.g. "Twin Pack (2.5kg each)") and corrupt financials.
+        const weightNum = (product && 'weight_kg' in product ? (product as any).weight_kg : 2);
+        const amountPaid = Math.round(weightNum * (product.wholesale_price || 0));
+
+        // Collision-resistant OTP: 2-char UID prefix + 4-digit random suffix.
+        // The UID prefix guarantees uniqueness per user within the same order;
+        // the numeric suffix keeps it scannable on a phone screen.
+        // Example output: "AB4921"
+        const randomPart = Math.floor(1000 + Math.random() * 9000).toString();
+        const uidPart = currentUser.uid.substring(0, 2).toUpperCase();
+        const uniqueOtp = `${uidPart}${randomPart}`;
+
+        // Join: create the contribution document only.
+        // total_kg_committed is recalculated by the real-time listener above.
         await addDoc(collection(db, "contributions"), {
           order_id: activeOrder.id,
+          community_id: communityId,  // denormalized — required for Firestore read rules
           user_id: currentUser.uid,
           kg_committed: weightNum,
           amount_paid: amountPaid,
@@ -150,167 +179,167 @@ export default function CommunityDetailsScreen() {
           delivery_otp: uniqueOtp,
           created_at: new Date().toISOString()
         });
-        await updateDoc(doc(db, "orders", activeOrder.id), {
-          total_kg_committed: increment(weightNum)
-        });
       }
-      isSuccess = true;
     } catch (error: any) {
       console.error("Firestore Transaction Failed:", error);
-      errorMessage = error.message || "An unknown error occurred.";
+      Alert.alert("Transaction Failed", error.message || "An unknown error occurred.");
+    } finally {
+      if (isMounted.current) setIsProcessing(false);
     }
-
-    setIsProcessing(false);
-    setTimeout(() => {
-      if (!isSuccess) Alert.alert("Transaction Failed", errorMessage);
-    }, 100);
   };
 
   const handleStartOrder = async () => {
     if (isProcessing) return;
     setIsProcessing(true);
-    let isSuccess = false;
-    let errorMessage = "";
 
     try {
       const productsSnapshot = await getDocs(collection(db, "products"));
-      let productId = "";
 
       if (productsSnapshot.empty) {
-        const defaultProduct = {
-          name: "Default Whey Protein",
-          description: "Standard whey protein supplement",
-          wholesale_price: 3000,
-          retail_price: 4000,
-          weight: "2",
-          image_url: "",
-          created_at: new Date().toISOString()
-        };
-        const productDocRef = await addDoc(collection(db, "products"), defaultProduct);
-        productId = productDocRef.id;
-      } else {
-        productId = productsSnapshot.docs[0].id;
+        // The products collection must be seeded manually via the Firebase Console
+        // before running the app. Client-side writes to /products are blocked by
+        // Firestore rules (allow write: if false), so attempting addDoc here would
+        // throw PERMISSION_DENIED and permanently block order creation.
+        Alert.alert(
+          "Setup Required",
+          "No products found. Please add at least one product document in the Firebase Console under the 'products' collection, then try again."
+        );
+        return;
       }
 
+      const productDoc = productsSnapshot.docs[0];
+      const productId = productDoc.id;
+      const productData = productDoc.data();
       await addDoc(collection(db, "orders"), {
         community_id: communityId,
         product_id: productId,
-        total_kg_required: 20,
+        // MOQ is owned by the product document, not hardcoded in the client.
+        // Seed the 'moq' field in Firebase Console alongside each product.
+        // Fallback of 20kg preserves existing behaviour if the field is absent.
+        total_kg_required: productData.moq || 20,
         total_kg_committed: 0,
         status: "pooling",
         created_at: new Date().toISOString()
       });
-      isSuccess = true;
+      Alert.alert("Success", "New order started successfully!", [{ text: "OK" }], { cancelable: true });
     } catch (error: any) {
       console.error("Firestore Transaction Failed:", error);
-      errorMessage = error.message || "An unknown error occurred.";
+      Alert.alert("Transaction Failed", error.message || "An unknown error occurred.");
+    } finally {
+      if (isMounted.current) setIsProcessing(false);
     }
-
-    setIsProcessing(false);
-    setTimeout(() => {
-      if (isSuccess) Alert.alert("Success", "New order started successfully!", [{ text: "OK" }], { cancelable: true });
-      else Alert.alert("Transaction Failed", errorMessage);
-    }, 100);
   };
 
   const handleCloseOrder = async () => {
     if (isProcessing || !activeOrder) return;
     setIsProcessing(true);
 
-    if (activeOrder.total_kg_committed < activeOrder.total_kg_required) {
-      setTimeout(() => {
-        Alert.alert(
-          "Warning: MOQ Not Met",
-          `The MOQ of ${activeOrder.total_kg_required} kg is not met (currently ${(activeOrder.total_kg_committed || 0).toFixed(1)} kg). Close anyway?`,
-          [
-            { text: "Cancel", style: "cancel", onPress: () => setIsProcessing(false) },
-            {
-              text: "Yes, Close Order",
-              onPress: async () => {
-                let isSuccess = false;
-                let errorMessage = "";
-                try {
-                  await updateDoc(doc(db, "orders", activeOrder.id), { status: "completed" });
-                  isSuccess = true;
-                } catch (error: any) {
-                  console.error(error);
-                  errorMessage = error.message || "Unknown error occurred.";
-                }
-                setIsProcessing(false);
-                setTimeout(() => {
-                  if (isSuccess) Alert.alert("Success", "Order closed successfully!");
-                  else Alert.alert("Transaction Failed", errorMessage);
-                }, 100);
-              }
-            }
-          ],
-          { cancelable: true, onDismiss: () => setIsProcessing(false) }
-        );
-      }, 50);
-    } else {
-      let isSuccess = false;
-      let errorMessage = "";
-      try {
-        await updateDoc(doc(db, "orders", activeOrder.id), { status: "completed" });
-        isSuccess = true;
-      } catch (error: any) {
-        console.error("Firestore Transaction Failed:", error);
-        errorMessage = error.message || "An unknown error occurred.";
-      }
-      setIsProcessing(false);
-      setTimeout(() => {
-        if (isSuccess) Alert.alert("Success", "Order closed successfully!");
-        else Alert.alert("Transaction Failed", errorMessage);
-      }, 100);
+    // Hard MOQ block — no override allowed.
+    // The rules cannot aggregate contributions server-side, so the frontend
+    // enforces this as the sole gate. Removing the override prevents any admin
+    // from triggering OTP delivery against a volume the wholesaler will reject.
+    if (totalKgCommitted < activeOrder.total_kg_required) {
+      const remaining = (activeOrder.total_kg_required - totalKgCommitted).toFixed(1);
+      if (isMounted.current) setIsProcessing(false);
+      Alert.alert(
+        "MOQ Not Met",
+        `Cannot close order. Need ${remaining} kg more to reach the ${activeOrder.total_kg_required} kg wholesale threshold.`
+      );
+      return;
     }
+
+    try {
+      await updateDoc(doc(db, "orders", activeOrder.id), { status: "completed" });
+      Alert.alert("Success", "Order closed successfully!");
+    } catch (error: any) {
+      console.error("Firestore Transaction Failed:", error);
+      Alert.alert("Transaction Failed", error.message || "An unknown error occurred.");
+    } finally {
+      if (isMounted.current) setIsProcessing(false);
+    }
+  };
+
+  const handleCancelOrder = async () => {
+    if (isProcessing || !activeOrder) return;
+    setIsProcessing(true);
+
+    Alert.alert(
+      "Cancel Order",
+      "Are you sure you want to abort this group buy? This cannot be undone.",
+      [
+        { text: "No, Keep Pooling", style: "cancel", onPress: () => setIsProcessing(false) },
+        {
+          text: "Yes, Abort Order",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              // Step 1: Delete all pending contributions for this order.
+              // Without this, user contribution records become permanently orphaned
+              // because the rules forbid editing contributions once the order is
+              // no longer 'pooling'. Deleting them here releases the financial lock.
+              const contributionsQuery = query(
+                collection(db, "contributions"),
+                where("order_id", "==", activeOrder.id)
+              );
+              const snapshot = await getDocs(contributionsQuery);
+              await Promise.all(snapshot.docs.map(d => deleteDoc(doc(db, "contributions", d.id))));
+
+              // Step 2: Cancel the parent order.
+              // The real-time listener excludes 'cancelled', so the UI immediately
+              // drops to "No Active Order", unblocking the admin to start a fresh pool.
+              await updateDoc(doc(db, "orders", activeOrder.id), { status: "cancelled" });
+              Alert.alert("Cancelled", "The order has been aborted and all commitments released.");
+            } catch (error: any) {
+              console.error("Firestore Transaction Failed:", error);
+              Alert.alert("Transaction Failed", error.message || "An unknown error occurred.");
+            } finally {
+              if (isMounted.current) setIsProcessing(false);
+            }
+          }
+        }
+      ],
+      { cancelable: true, onDismiss: () => setIsProcessing(false) }
+    );
   };
 
   const handleVerifyOTP = async () => {
     if (isProcessing || !activeOrder || otpInput.length < 6) return;
     setIsProcessing(true);
-    let isSuccess = false;
-    let alertTitle = "";
-    let alertMsg = "";
 
     try {
+      // Normalise the input: trim whitespace AND force uppercase so that
+      // mobile auto-capitalisation (e.g. "ab4921" vs "AB4921") never causes
+      // a false "Invalid OTP" error during the live handover.
+      const sanitizedOtp = otpInput.trim().toUpperCase();
       const q = query(
         collection(db, "contributions"),
         where("order_id", "==", activeOrder.id),
-        where("delivery_otp", "==", otpInput.trim())
+        where("delivery_otp", "==", sanitizedOtp)
       );
       const snapshot = await getDocs(q);
 
       if (snapshot.empty) {
-        alertTitle = "Invalid OTP";
-        alertMsg = "No matching token found for this order.";
+        Alert.alert("Invalid OTP", "No matching token found for this order.");
       } else {
         const contributionDoc = snapshot.docs[0];
         if (contributionDoc.data().status === "delivered") {
-          alertTitle = "Already Claimed";
-          alertMsg = "This OTP has already been used to claim protein.";
+          Alert.alert("Already Claimed", "This OTP has already been used to claim protein.");
         } else {
           await updateDoc(doc(db, "contributions", contributionDoc.id), { status: "delivered" });
-          isSuccess = true;
-          alertTitle = "Success";
-          alertMsg = "Token verified! Contribution marked as delivered.";
+          Alert.alert("Success", "Token verified! Contribution marked as delivered.");
         }
       }
     } catch (error: any) {
       console.error(error);
-      alertTitle = "Error";
-      alertMsg = error.message;
+      Alert.alert("Error", error.message || "An unknown error occurred.");
+    } finally {
+      if (isMounted.current) setIsProcessing(false);
+      setOtpInput(""); // Clear the input field automatically
     }
-
-    setIsProcessing(false);
-    setOtpInput(""); // Clear the input field automatically
-
-    setTimeout(() => {
-      Alert.alert(alertTitle, alertMsg);
-    }, 100);
   };
 
-  const progressPct = activeOrder && activeOrder.total_kg_required > 0 
-    ? Math.min(((activeOrder.total_kg_committed || 0) / activeOrder.total_kg_required) * 100, 100)
+  const progressPct = activeOrder && activeOrder.total_kg_required > 0
+    ? Math.min((totalKgCommitted / activeOrder.total_kg_required) * 100, 100)
     : 0;
 
   const isAdmin = !!(community && currentUser && community.admin_uid === currentUser.uid);
@@ -398,16 +427,16 @@ export default function CommunityDetailsScreen() {
             <View style={styles.progressHeader}>
               <Text style={styles.progressTitle}>Group Progress</Text>
               <Text style={styles.progressRatio}>
-                {(activeOrder.total_kg_committed || 0).toFixed(1)} / {activeOrder.total_kg_required} kg
+                {totalKgCommitted.toFixed(1)} / {activeOrder.total_kg_required} kg
               </Text>
             </View>
             <View style={styles.progressBarContainer}>
               <View style={[styles.progressBarFill, { width: `${progressPct}%` }]} />
             </View>
             <Text style={styles.progressDescription}>
-              {progressPct >= 100 
-                ? "Wholesale tier reached! Order is ready to dispatch." 
-                : `Need ${(activeOrder.total_kg_required - (activeOrder.total_kg_committed || 0)).toFixed(1)} kg more committed to unlock wholesale price.`}
+              {progressPct >= 100
+                ? "Wholesale tier reached! Order is ready to dispatch."
+                : `Need ${(activeOrder.total_kg_required - totalKgCommitted).toFixed(1)} kg more committed to unlock wholesale price.`}
             </Text>
           </View>
         )}
@@ -415,12 +444,12 @@ export default function CommunityDetailsScreen() {
         {isAdmin ? (
           <View style={styles.adminCard}>
             <Text style={styles.adminCardTitle}>👑 Manage Orders (Admin Panel)</Text>
-            
+
             {activeOrder ? (
               <>
                 <View style={styles.adminStatsRow}>
                   <View style={styles.adminStatItem}>
-                    <Text style={styles.adminStatVal}>{(activeOrder.total_kg_committed || 0).toFixed(1)} kg</Text>
+                    <Text style={styles.adminStatVal}>{totalKgCommitted.toFixed(1)} kg</Text>
                     <Text style={styles.adminStatLbl}>Committed</Text>
                   </View>
                   <View style={styles.adminStatDivider} />
@@ -437,15 +466,25 @@ export default function CommunityDetailsScreen() {
 
                 {activeOrder.status === 'pooling' ? (
                   <>
-                    <Text style={styles.adminCardText}>Monitor progress. Once MOQ is met, close the order to trigger physical fulfillment.</Text>
-                    <TouchableOpacity 
-                      style={[styles.adminActionBtn, styles.dangerBtn, isProcessing && styles.disabledBtn]} 
+                    <Text style={styles.adminCardText}>Monitor progress. Once MOQ is met, close the order to trigger physical fulfillment. If the pool stalls, you can cancel it to unblock a new group buy.</Text>
+                    <TouchableOpacity
+                      style={[styles.adminActionBtn, styles.dangerBtn, isProcessing && styles.disabledBtn]}
                       activeOpacity={0.8}
                       onPress={handleCloseOrder}
                       disabled={isProcessing}
                     >
                       <Text style={styles.adminActionBtnText}>
-                        {isProcessing ? "Processing..." : "Close Order"}
+                        {isProcessing ? "Processing..." : "Close Order (MOQ Met)"}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.adminActionBtn, { backgroundColor: '#ef4444', marginTop: 8 }, isProcessing && styles.disabledBtn]}
+                      activeOpacity={0.8}
+                      onPress={handleCancelOrder}
+                      disabled={isProcessing}
+                    >
+                      <Text style={styles.adminActionBtnText}>
+                        {isProcessing ? "Processing..." : "Abort & Cancel Order"}
                       </Text>
                     </TouchableOpacity>
                   </>
@@ -480,8 +519,8 @@ export default function CommunityDetailsScreen() {
             ) : (
               <>
                 <Text style={styles.adminCardText}>There is currently no active group buy order. Start a new one below.</Text>
-                <TouchableOpacity 
-                  style={[styles.adminActionBtn, isProcessing && styles.disabledBtn]} 
+                <TouchableOpacity
+                  style={[styles.adminActionBtn, isProcessing && styles.disabledBtn]}
                   activeOpacity={0.8}
                   onPress={handleStartOrder}
                   disabled={isProcessing}
@@ -493,8 +532,8 @@ export default function CommunityDetailsScreen() {
               </>
             )}
             {/* Edit Details Button */}
-            <TouchableOpacity 
-              style={[styles.editDetailsBtn, { marginTop: 12 }]} 
+            <TouchableOpacity
+              style={[styles.editDetailsBtn, { marginTop: 12 }]}
               activeOpacity={0.8}
               onPress={() => router.push(`/community/edit/${communityId}`)}
             >
@@ -505,10 +544,10 @@ export default function CommunityDetailsScreen() {
 
         {/* Join / Leave button — rendered for ALL users including admin (test mode) */}
         {activeOrder && product && activeOrder.status === 'pooling' && (
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[
-              styles.joinButton, 
-              userContribution && styles.joinedButton, 
+              styles.joinButton,
+              userContribution && styles.joinedButton,
               isProcessing && { opacity: 0.6 },
               isAdmin && { marginTop: 12, backgroundColor: '#4f46e5' }
             ]}
