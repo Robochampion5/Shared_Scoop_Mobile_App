@@ -1,11 +1,18 @@
-import { initializeApp, getApps, getApp } from "firebase/app";
+import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { Platform } from 'react-native';
-import { initializeAuth as initializeAuthWeb } from "firebase/auth";
-import { initializeAuth, getReactNativePersistence } from "firebase/auth/react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 
-// Configuration pulling securely from your Task 1 verified environment setup
+// 1. Import strictly typed Auth modules
+import { initializeAuth, getAuth, Auth } from "firebase/auth";
+
+// 2. Bypass the Firebase v10 TypeScript bug. 
+// The compiler can't see this function, but the Metro runtime will execute it flawlessly.
+// @ts-ignore
+import { getReactNativePersistence } from "firebase/auth";
+
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { initializeFirestore, getFirestore, Firestore } from "firebase/firestore";
+
+// Configuration
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -15,25 +22,31 @@ const firebaseConfig = {
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
 };
 
-// 1. Explicitly initialize and assign 'app' safely to handle Fast Refresh re-runs
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+let app: FirebaseApp;
+let auth: Auth;
+let db: Firestore;
 
-// 2. Initialize Auth cross-platform
-let auth: any;
-if (Platform.OS !== 'web') {
-  auth = initializeAuth(app, {
-    persistence: getReactNativePersistence(AsyncStorage),
-  });
+if (getApps().length === 0) {
+  // --- INITIAL BOOT ---
+  app = initializeApp(firebaseConfig);
+  
+  // Initialize Auth with Native AsyncStorage persistence
+  if (Platform.OS !== 'web') {
+    auth = initializeAuth(app, {
+      persistence: getReactNativePersistence(AsyncStorage),
+    });
+  } else {
+    auth = getAuth(app); // Web fallback
+  }
+
+  // Initialize Firestore with React Native's compatible default memory cache
+  db = initializeFirestore(app, {}); 
+
 } else {
-  auth = initializeAuthWeb(app);
+  // --- FAST REFRESH RECOVERY ---
+  app = getApp();
+  auth = getAuth(app);
+  db = getFirestore(app);
 }
 
-// 3. Initialize Firestore with the optimized persistent local cache configuration
-const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({
-    tabManager: persistentMultipleTabManager(),
-  }),
-});
-
-// 4. Clean exports ensuring 'app' is explicitly defined
 export { app, auth, db };

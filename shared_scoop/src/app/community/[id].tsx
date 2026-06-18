@@ -1,3 +1,4 @@
+// Author: Adarsh Singh | Roll No: IC2025006
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView, StatusBar, ActivityIndicator, Alert, TextInput } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -5,6 +6,7 @@ import { doc, collection, query, where, onSnapshot, addDoc, deleteDoc, updateDoc
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { db, auth } from '@/lib/firebase';
 import { Community, Order, Product, Contribution } from '@/lib/types';
+import LiquidCard from '@/components/LiquidCard';
 
 export default function CommunityDetailsScreen() {
   const router = useRouter();
@@ -196,10 +198,6 @@ export default function CommunityDetailsScreen() {
       const productsSnapshot = await getDocs(collection(db, "products"));
 
       if (productsSnapshot.empty) {
-        // The products collection must be seeded manually via the Firebase Console
-        // before running the app. Client-side writes to /products are blocked by
-        // Firestore rules (allow write: if false), so attempting addDoc here would
-        // throw PERMISSION_DENIED and permanently block order creation.
         Alert.alert(
           "Setup Required",
           "No products found. Please add at least one product document in the Firebase Console under the 'products' collection, then try again."
@@ -213,9 +211,6 @@ export default function CommunityDetailsScreen() {
       await addDoc(collection(db, "orders"), {
         community_id: communityId,
         product_id: productId,
-        // MOQ is owned by the product document, not hardcoded in the client.
-        // Seed the 'moq' field in Firebase Console alongside each product.
-        // Fallback of 20kg preserves existing behaviour if the field is absent.
         total_kg_required: productData.moq || 20,
         total_kg_committed: 0,
         status: "pooling",
@@ -234,10 +229,6 @@ export default function CommunityDetailsScreen() {
     if (isProcessing || !activeOrder) return;
     setIsProcessing(true);
 
-    // Hard MOQ block — no override allowed.
-    // The rules cannot aggregate contributions server-side, so the frontend
-    // enforces this as the sole gate. Removing the override prevents any admin
-    // from triggering OTP delivery against a volume the wholesaler will reject.
     if (totalKgCommitted < activeOrder.total_kg_required) {
       const remaining = (activeOrder.total_kg_required - totalKgCommitted).toFixed(1);
       if (isMounted.current) setIsProcessing(false);
@@ -273,10 +264,6 @@ export default function CommunityDetailsScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              // Step 1: Delete all pending contributions for this order.
-              // Without this, user contribution records become permanently orphaned
-              // because the rules forbid editing contributions once the order is
-              // no longer 'pooling'. Deleting them here releases the financial lock.
               const contributionsQuery = query(
                 collection(db, "contributions"),
                 where("order_id", "==", activeOrder.id)
@@ -284,9 +271,6 @@ export default function CommunityDetailsScreen() {
               const snapshot = await getDocs(contributionsQuery);
               await Promise.all(snapshot.docs.map(d => deleteDoc(doc(db, "contributions", d.id))));
 
-              // Step 2: Cancel the parent order.
-              // The real-time listener excludes 'cancelled', so the UI immediately
-              // drops to "No Active Order", unblocking the admin to start a fresh pool.
               await updateDoc(doc(db, "orders", activeOrder.id), { status: "cancelled" });
               Alert.alert("Cancelled", "The order has been aborted and all commitments released.");
             } catch (error: any) {
@@ -307,9 +291,6 @@ export default function CommunityDetailsScreen() {
     setIsProcessing(true);
 
     try {
-      // Normalise the input: trim whitespace AND force uppercase so that
-      // mobile auto-capitalisation (e.g. "ab4921" vs "AB4921") never causes
-      // a false "Invalid OTP" error during the live handover.
       const sanitizedOtp = otpInput.trim().toUpperCase();
       const q = query(
         collection(db, "contributions"),
@@ -348,7 +329,7 @@ export default function CommunityDetailsScreen() {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#84cc16" />
+          <ActivityIndicator size="large" color="#7c3aed" />
           <Text style={styles.loadingText}>{authLoading ? "Initializing auth..." : "Loading details..."}</Text>
         </View>
       </SafeAreaView>
@@ -372,7 +353,7 @@ export default function CommunityDetailsScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" backgroundColor="#0f0f1a" />
 
       <View style={styles.navHeader}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()} activeOpacity={0.7}>
@@ -381,7 +362,19 @@ export default function CommunityDetailsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
-        <View style={styles.communityHeaderCard}>
+
+        {/* ============================================================= */}
+        {/* MATRIX LAYER — absolute-positioned blurred orbs that give the  */}
+        {/* BlurView frosted glass something to distort. Without these the */}
+        {/* blur renders as flat grey. Saturated purples + lime-green to   */}
+        {/* match the SharedScoop brand palette.                           */}
+        {/* ============================================================= */}
+        <View style={styles.matrixOrb1} />
+        <View style={styles.matrixOrb2} />
+        <View style={styles.matrixOrb3} />
+
+        {/* Community header — LiquidCard */}
+        <LiquidCard intensity={70}>
           <Text style={styles.communityName}>{community.name}</Text>
           <View style={styles.communityMetaRow}>
             <View style={styles.metaBadge}>
@@ -389,12 +382,13 @@ export default function CommunityDetailsScreen() {
             </View>
             <Text style={styles.metaMembers}>•  {memberCount} Members</Text>
           </View>
-        </View>
+        </LiquidCard>
 
         <Text style={styles.sectionTitle}>Active Group-Buy Deal</Text>
 
+        {/* Deal card */}
         {activeOrder && product ? (
-          <View style={styles.dealCard}>
+          <LiquidCard intensity={80}>
             <View style={styles.brandBadge}>
               <Text style={styles.brandBadgeText}>{product.name.split(" ")[0] || "Supplement"}</Text>
             </View>
@@ -414,16 +408,17 @@ export default function CommunityDetailsScreen() {
               </View>
             </View>
             <Text style={styles.wholesaleLabel}>Wholesale Pricing unlocked via group buy</Text>
-          </View>
+          </LiquidCard>
         ) : (
-          <View style={styles.dealCard}>
+          <LiquidCard intensity={60}>
             <Text style={styles.productName}>No Active Group Buy Deal</Text>
             <Text style={styles.dealDetail}>The community admin hasn't created a pool for this group yet.</Text>
-          </View>
+          </LiquidCard>
         )}
 
+        {/* Progress card */}
         {activeOrder && product && activeOrder.status === 'pooling' && (
-          <View style={styles.progressCard}>
+          <LiquidCard intensity={75}>
             <View style={styles.progressHeader}>
               <Text style={styles.progressTitle}>Group Progress</Text>
               <Text style={styles.progressRatio}>
@@ -438,11 +433,12 @@ export default function CommunityDetailsScreen() {
                 ? "Wholesale tier reached! Order is ready to dispatch."
                 : `Need ${(activeOrder.total_kg_required - totalKgCommitted).toFixed(1)} kg more committed to unlock wholesale price.`}
             </Text>
-          </View>
+          </LiquidCard>
         )}
 
+        {/* Admin panel */}
         {isAdmin ? (
-          <View style={styles.adminCard}>
+          <LiquidCard intensity={85} style={{ borderColor: 'rgba(217, 119, 6, 0.3)', borderWidth: 1 }}>
             <Text style={styles.adminCardTitle}>👑 Manage Orders (Admin Panel)</Text>
 
             {activeOrder ? (
@@ -496,7 +492,7 @@ export default function CommunityDetailsScreen() {
                     <TextInput
                       style={[styles.input, isProcessing && styles.disabledInput]}
                       placeholder="Enter 6-digit OTP"
-                      placeholderTextColor="#9ca3af"
+                      placeholderTextColor="rgba(255,255,255,0.3)"
                       keyboardType="number-pad"
                       maxLength={6}
                       value={otpInput}
@@ -541,13 +537,13 @@ export default function CommunityDetailsScreen() {
             </TouchableOpacity>
             {/* Manage Members Button — Phase 1 approval pipeline */}
             <TouchableOpacity
-              style={[styles.editDetailsBtn, { marginTop: 8, backgroundColor: '#1e1b4b' }]}
+              style={[styles.editDetailsBtn, { marginTop: 8, backgroundColor: 'rgba(79, 70, 229, 0.25)', borderWidth: 1, borderColor: 'rgba(124, 58, 237, 0.4)' }]}
               activeOpacity={0.8}
               onPress={() => router.push(`/community/manage-members?id=${communityId}`)}
             >
               <Text style={[styles.editDetailsBtnText, { color: '#a78bfa' }]}>👥  Manage Members</Text>
             </TouchableOpacity>
-          </View>
+          </LiquidCard>
         ) : null}
 
         {/* Join / Leave button — rendered for ALL users including admin (test mode) */}
@@ -574,57 +570,87 @@ export default function CommunityDetailsScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#f9fafb' },
-  navHeader: { paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#e5e7eb', backgroundColor: '#ffffff' },
-  backButton: { paddingVertical: 6, paddingHorizontal: 12, backgroundColor: '#f3f4f6', borderRadius: 8, alignSelf: 'flex-start' },
-  backButtonText: { fontSize: 14, fontWeight: '600', color: '#374151' },
-  contentContainer: { padding: 20, gap: 20 },
-  communityHeaderCard: { backgroundColor: '#ffffff', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: '#e5e7eb' },
-  communityName: { fontSize: 22, fontWeight: '700', color: '#111827', marginBottom: 8 },
-  communityMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  metaBadge: { backgroundColor: '#f3f4f6', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  metaBadgeText: { fontSize: 12, fontWeight: '500', color: '#4b5563' },
+  // ---- Core layout (dark mode) ----
+  safeArea: { flex: 1, backgroundColor: '#0f0f1a' },
+  navHeader: { paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)', backgroundColor: '#0f0f1a' },
+  backButton: { paddingVertical: 6, paddingHorizontal: 12, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 8, alignSelf: 'flex-start' },
+  backButtonText: { fontSize: 14, fontWeight: '600', color: '#a78bfa' },
+  contentContainer: { padding: 20, gap: 16, position: 'relative' as const },
+
+  // ---- Matrix orbs — give BlurView something to distort ----
+  matrixOrb1: {
+    position: 'absolute' as const, top: -40, left: -60, width: 220, height: 220,
+    borderRadius: 110, backgroundColor: 'rgba(124, 58, 237, 0.35)',
+    // React Native doesn't support CSS filter blur on Views.
+    // The BlurView in LiquidCard will pick this up as a background tint.
+    opacity: 0.6,
+  },
+  matrixOrb2: {
+    position: 'absolute' as const, top: 280, right: -80, width: 260, height: 260,
+    borderRadius: 130, backgroundColor: 'rgba(132, 204, 22, 0.2)',
+    opacity: 0.5,
+  },
+  matrixOrb3: {
+    position: 'absolute' as const, top: 550, left: -30, width: 180, height: 180,
+    borderRadius: 90, backgroundColor: 'rgba(217, 119, 6, 0.2)',
+    opacity: 0.4,
+  },
+
+  // ---- Community header ----
+  communityName: { fontSize: 22, fontWeight: '700', color: '#f0f0ff', marginBottom: 8, letterSpacing: 0.3 },
+  communityMetaRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8 },
+  metaBadge: { backgroundColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  metaBadgeText: { fontSize: 12, fontWeight: '500', color: '#9ca3af' },
   metaMembers: { fontSize: 13, color: '#6b7280' },
-  sectionTitle: { fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: -8 },
-  dealCard: { backgroundColor: '#ffffff', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: '#e5e7eb' },
-  brandBadge: { backgroundColor: 'rgba(132, 204, 22, 0.1)', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginBottom: 12 },
-  brandBadgeText: { color: '#84cc16', fontWeight: '600', fontSize: 11, textTransform: 'uppercase' },
-  productName: { fontSize: 18, fontWeight: '700', color: '#111827', marginBottom: 10 },
-  dealDetail: { fontSize: 14, color: '#4b5563', marginBottom: 6 },
-  boldText: { fontWeight: '600', color: '#111827' },
-  priceRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16 },
-  discountPrice: { fontSize: 20, fontWeight: '700', color: '#111827' },
-  originalPrice: { fontSize: 14, color: '#9ca3af', textDecorationLine: 'line-through' },
+
+  // ---- Section title ----
+  sectionTitle: { fontSize: 16, fontWeight: '600', color: '#9ca3af', marginBottom: -4, letterSpacing: 0.4 },
+
+  // ---- Deal card content (colors only — container is LiquidCard) ----
+  brandBadge: { backgroundColor: 'rgba(132, 204, 22, 0.15)', alignSelf: 'flex-start' as const, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginBottom: 12 },
+  brandBadgeText: { color: '#84cc16', fontWeight: '600', fontSize: 11, textTransform: 'uppercase' as const },
+  productName: { fontSize: 18, fontWeight: '700', color: '#f0f0ff', marginBottom: 10 },
+  dealDetail: { fontSize: 14, color: '#9ca3af', marginBottom: 6 },
+  boldText: { fontWeight: '600', color: '#e5e7eb' },
+  priceRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, marginTop: 16 },
+  discountPrice: { fontSize: 20, fontWeight: '700', color: '#f0f0ff' },
+  originalPrice: { fontSize: 14, color: '#6b7280', textDecorationLine: 'line-through' as const },
   discountBadge: { backgroundColor: '#ef4444', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   discountBadgeText: { color: '#ffffff', fontWeight: '700', fontSize: 11 },
   wholesaleLabel: { fontSize: 12, color: '#84cc16', fontWeight: '500', marginTop: 8 },
-  progressCard: { backgroundColor: '#ffffff', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: '#e5e7eb' },
-  progressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  progressTitle: { fontSize: 15, fontWeight: '600', color: '#111827' },
-  progressRatio: { fontSize: 14, fontWeight: '600', color: '#374151' },
-  progressBarContainer: { height: 12, backgroundColor: '#e5e7eb', borderRadius: 6, overflow: 'hidden', marginBottom: 12 },
-  progressBarFill: { height: '100%', backgroundColor: '#84cc16', borderRadius: 6 },
-  progressDescription: { fontSize: 13, color: '#6b7280', lineHeight: 18 },
-  joinButton: { backgroundColor: '#111827', borderRadius: 12, height: 52, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
+
+  // ---- Progress card content ----
+  progressHeader: { flexDirection: 'row' as const, justifyContent: 'space-between' as const, alignItems: 'center' as const, marginBottom: 12 },
+  progressTitle: { fontSize: 15, fontWeight: '600', color: '#f0f0ff' },
+  progressRatio: { fontSize: 14, fontWeight: '600', color: '#a78bfa' },
+  progressBarContainer: { height: 12, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 6, overflow: 'hidden' as const, marginBottom: 12 },
+  progressBarFill: { height: '100%' as const, backgroundColor: '#84cc16', borderRadius: 6 },
+  progressDescription: { fontSize: 13, color: '#9ca3af', lineHeight: 18 },
+
+  // ---- Join/Leave button ----
+  joinButton: { backgroundColor: '#7c3aed', borderRadius: 16, height: 56, alignItems: 'center' as const, justifyContent: 'center' as const, marginTop: 8 },
   joinedButton: { backgroundColor: '#ef4444' },
-  joinButtonText: { color: '#ffffff', fontSize: 16, fontWeight: '600' },
-  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
+  joinButtonText: { color: '#ffffff', fontSize: 16, fontWeight: '700', letterSpacing: 0.3 },
+
+  // ---- Loading / empty states ----
+  loadingContainer: { flex: 1, alignItems: 'center' as const, justifyContent: 'center' as const, padding: 20 },
   loadingText: { marginTop: 12, color: '#6b7280', fontSize: 14, fontWeight: '500' },
-  adminCard: { backgroundColor: '#ffffff', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: '#f59e0b', marginTop: 8 },
-  adminCardTitle: { fontSize: 16, fontWeight: '700', color: '#d97706', marginBottom: 8 },
-  adminCardText: { fontSize: 13, color: '#4b5563', lineHeight: 18, marginBottom: 16 },
-  adminStatsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fffbeb', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 16, marginBottom: 16 },
-  adminStatItem: { alignItems: 'center', flex: 1 },
-  adminStatVal: { fontSize: 15, fontWeight: '700', color: '#111827' },
+
+  // ---- Admin card content ----
+  adminCardTitle: { fontSize: 16, fontWeight: '700', color: '#fbbf24', marginBottom: 8 },
+  adminCardText: { fontSize: 13, color: '#9ca3af', lineHeight: 18, marginBottom: 16 },
+  adminStatsRow: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, backgroundColor: 'rgba(251, 191, 36, 0.08)', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 16, marginBottom: 16, borderWidth: 1, borderColor: 'rgba(251, 191, 36, 0.15)' },
+  adminStatItem: { alignItems: 'center' as const, flex: 1 },
+  adminStatVal: { fontSize: 15, fontWeight: '700', color: '#f0f0ff' },
   adminStatLbl: { fontSize: 11, color: '#6b7280', marginTop: 2, fontWeight: '500' },
-  adminStatDivider: { width: 1, height: 24, backgroundColor: '#fcd34d' },
-  adminActionBtn: { backgroundColor: '#d97706', borderRadius: 12, height: 48, alignItems: 'center', justifyContent: 'center' },
+  adminStatDivider: { width: 1, height: 24, backgroundColor: 'rgba(251, 191, 36, 0.25)' },
+  adminActionBtn: { backgroundColor: '#d97706', borderRadius: 12, height: 48, alignItems: 'center' as const, justifyContent: 'center' as const },
   adminActionBtnText: { color: '#ffffff', fontSize: 14, fontWeight: '600' },
   dangerBtn: { backgroundColor: '#ef4444' },
   disabledBtn: { opacity: 0.5 },
-  editDetailsBtn: { backgroundColor: '#374151', borderRadius: 12, height: 48, alignItems: 'center', justifyContent: 'center' },
-  editDetailsBtnText: { color: '#ffffff', fontSize: 14, fontWeight: '600' },
-  verificationContainer: { backgroundColor: '#f9fafb', padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', marginTop: 4 },
-  input: { backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, paddingHorizontal: 16, height: 48, fontSize: 18, color: '#111827', marginTop: 8, textAlign: 'center', letterSpacing: 4, fontWeight: '600' },
-  disabledInput: { opacity: 0.6, backgroundColor: '#f3f4f6' }
+  editDetailsBtn: { backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 12, height: 48, alignItems: 'center' as const, justifyContent: 'center' as const },
+  editDetailsBtnText: { color: '#e5e7eb', fontSize: 14, fontWeight: '600' },
+  verificationContainer: { backgroundColor: 'rgba(255,255,255,0.04)', padding: 16, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', marginTop: 4 },
+  input: { backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', borderRadius: 8, paddingHorizontal: 16, height: 48, fontSize: 18, color: '#f0f0ff', marginTop: 8, textAlign: 'center' as const, letterSpacing: 4, fontWeight: '600' },
+  disabledInput: { opacity: 0.6, backgroundColor: 'rgba(255,255,255,0.03)' },
 });
