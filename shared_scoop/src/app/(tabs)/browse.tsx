@@ -74,7 +74,7 @@ export default function BrowseCommunitiesScreen() {
           <Text style={styles.headerTitle}>Browse Communities</Text>
           <Text style={styles.headerSubtitle}>Find a buying group near you</Text>
         </View>
-        <TouchableOpacity style={styles.createButton} activeOpacity={0.8}>
+        <TouchableOpacity style={styles.createButton} activeOpacity={0.8} onPress={() => router.push('/community/create')}>
           <Text style={styles.createButtonText}>+ Create</Text>
         </TouchableOpacity>
       </View>
