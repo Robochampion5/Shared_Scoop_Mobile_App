@@ -4,10 +4,11 @@ import { collection, query, where, onSnapshot, getDoc, doc } from 'firebase/fire
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { db, auth } from '@/lib/firebase';
 import { useRouter } from 'expo-router';
+import MatrixBackground from '@/components/MatrixBackground';
+import LiquidCard from '@/components/LiquidCard';
 
-// Define localized types for the joined data structure
 interface JoinedCommitment {
-  id: string; // Contribution ID
+  id: string;
   contribution: any;
   order: any | null;
   product: any | null;
@@ -20,7 +21,6 @@ export default function CommitmentsScreen() {
   const [commitments, setCommitments] = useState<JoinedCommitment[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 1. Auth Gate
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
@@ -29,7 +29,6 @@ export default function CommitmentsScreen() {
     return () => unsubscribe();
   }, []);
 
-  // 2. Real-time Relational Listener
   useEffect(() => {
     if (!currentUser?.uid) {
       setCommitments([]);
@@ -51,22 +50,17 @@ export default function CommitmentsScreen() {
         return;
       }
 
-    // Resolve NoSQL relations manually for the UI
       const joinedDataPromises = snapshot.docs.map(async (docSnap) => {
         const contribData = docSnap.data();
-        
-        // FIX: Explicitly type these to prevent TypeScript from locking them as 'null'
         let orderData: any = null;
         let productData: any = null;
 
         try {
-          // Fetch associated order
           if (contribData.order_id) {
             const orderSnap = await getDoc(doc(db, 'orders', contribData.order_id));
             if (orderSnap.exists()) {
               orderData = { id: orderSnap.id, ...orderSnap.data() };
 
-              // Fetch associated product using safe optional chaining
               if (orderData?.product_id) {
                 const productSnap = await getDoc(doc(db, 'products', orderData.product_id));
                 if (productSnap.exists()) {
@@ -89,7 +83,6 @@ export default function CommitmentsScreen() {
 
       const resolvedData = await Promise.all(joinedDataPromises);
       
-      // Sort: Pending/Pooling at top, Delivered at bottom
       resolvedData.sort((a, b) => {
         if (a.contribution.status === 'delivered' && b.contribution.status !== 'delivered') return 1;
         if (a.contribution.status !== 'delivered' && b.contribution.status === 'delivered') return -1;
@@ -106,7 +99,6 @@ export default function CommitmentsScreen() {
     return () => unsubscribe();
   }, [currentUser?.uid]);
 
-  // 3. Render Individual Commitment Card
   const renderItem = useCallback(({ item }: { item: JoinedCommitment }) => {
     const { contribution, order, product } = item;
     
@@ -114,7 +106,7 @@ export default function CommitmentsScreen() {
     const isOrderCompleted = order?.status === 'completed';
 
     return (
-      <View style={[styles.card, isDelivered && styles.cardDelivered]}>
+      <LiquidCard intensity={40} style={[styles.card, isDelivered && styles.cardDelivered]}>
         <View style={styles.cardHeader}>
           <Text style={styles.productName}>
             {product?.name || "Unknown Product"}
@@ -147,7 +139,6 @@ export default function CommitmentsScreen() {
           </View>
         </View>
 
-        {/* The Fulfillment OTP Block - Strictly Conditional */}
         {!isDelivered && isOrderCompleted && contribution.delivery_otp && (
           <View style={styles.otpContainer}>
             <Text style={styles.otpLabel}>SECURE PICKUP TOKEN</Text>
@@ -157,7 +148,7 @@ export default function CommitmentsScreen() {
             </Text>
           </View>
         )}
-      </View>
+      </LiquidCard>
     );
   }, []);
 
@@ -165,7 +156,7 @@ export default function CommitmentsScreen() {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#84cc16" />
+          <ActivityIndicator size="large" color="#7c3aed" />
           <Text style={styles.loadingText}>Loading your commitments...</Text>
         </View>
       </SafeAreaView>
@@ -174,7 +165,8 @@ export default function CommitmentsScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" />
+      <MatrixBackground />
       <View style={styles.header}>
         <Text style={styles.headerTitle}>My Protein</Text>
         <Text style={styles.headerSubtitle}>Track your active and completed group buys</Text>
@@ -201,7 +193,7 @@ export default function CommitmentsScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#0f0f1a',
   },
   centerContainer: {
     flex: 1,
@@ -210,7 +202,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 12,
-    color: '#6b7280',
+    color: '#9ca3af',
     fontSize: 14,
     fontWeight: '500',
   },
@@ -222,11 +214,11 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#111827',
+    color: '#f0f0ff',
   },
   headerSubtitle: {
     fontSize: 14,
-    color: '#6b7280',
+    color: '#9ca3af',
     marginTop: 4,
   },
   listContainer: {
@@ -235,20 +227,11 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   card: {
-    backgroundColor: '#ffffff',
     borderRadius: 16,
     padding: 16,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
   },
   cardDelivered: {
     opacity: 0.6,
-    backgroundColor: '#f3f4f6',
   },
   cardHeader: {
     flexDirection: 'row',
@@ -260,7 +243,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontWeight: '700',
-    color: '#111827',
+    color: '#f0f0ff',
     marginRight: 12,
   },
   statusBadge: {
@@ -269,13 +252,13 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   badgePending: {
-    backgroundColor: '#fef3c7',
+    backgroundColor: 'rgba(217, 119, 6, 0.2)',
   },
   badgeActionable: {
-    backgroundColor: '#dcfce7',
+    backgroundColor: 'rgba(22, 163, 74, 0.2)',
   },
   badgeSuccess: {
-    backgroundColor: '#e5e7eb',
+    backgroundColor: 'rgba(255,255,255,0.1)',
   },
   statusText: {
     fontSize: 12,
@@ -288,13 +271,13 @@ const styles = StyleSheet.create({
     color: '#16a34a',
   },
   textSuccess: {
-    color: '#4b5563',
+    color: '#9ca3af',
   },
   detailsRow: {
     flexDirection: 'row',
     gap: 24,
     borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
+    borderTopColor: 'rgba(255,255,255,0.05)',
     paddingTop: 12,
   },
   detailItem: {
@@ -302,7 +285,7 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 11,
-    color: '#6b7280',
+    color: '#9ca3af',
     fontWeight: '500',
     textTransform: 'uppercase',
     marginBottom: 4,
@@ -310,7 +293,7 @@ const styles = StyleSheet.create({
   detailValue: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#111827',
+    color: '#f0f0ff',
   },
   otpContainer: {
     marginTop: 16,
@@ -351,12 +334,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#111827',
+    color: '#f0f0ff',
     marginBottom: 8,
   },
   emptySubtitle: {
     fontSize: 14,
-    color: '#6b7280',
+    color: '#9ca3af',
     textAlign: 'center',
   },
 });

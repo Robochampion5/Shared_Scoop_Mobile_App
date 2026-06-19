@@ -4,6 +4,8 @@ import { useRouter } from 'expo-router';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Community } from '@/lib/types';
+import MatrixBackground from '@/components/MatrixBackground';
+import LiquidCard from '@/components/LiquidCard';
 
 const LOCATIONS = ["All", "Koramangala", "Whitefield", "Indiranagar", "HSR Layout", "Marathahalli", "Jayanagar"];
 
@@ -12,12 +14,10 @@ export default function BrowseCommunitiesScreen() {
   const [search, setSearch] = useState("");
   const [selectedLocation, setSelectedLocation] = useState("All");
 
-  // Real-time state
   const [communities, setCommunities] = useState<Community[]>([]);
   const [memberCounts, setMemberCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
 
-  // Subscribe to real-time communities
   useEffect(() => {
     const communitiesRef = collection(db, "communities");
     const unsubscribe = onSnapshot(communitiesRef, (snapshot) => {
@@ -35,7 +35,6 @@ export default function BrowseCommunitiesScreen() {
     return () => unsubscribe();
   }, []);
 
-  // Subscribe to real-time approved membership counts
   useEffect(() => {
     const membershipsQuery = query(
       collection(db, "memberships"),
@@ -66,7 +65,8 @@ export default function BrowseCommunitiesScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" />
+      <MatrixBackground />
       
       {/* Header */}
       <View style={styles.header}>
@@ -86,7 +86,7 @@ export default function BrowseCommunitiesScreen() {
           <TextInput
             style={styles.searchInput}
             placeholder="Search communities..."
-            placeholderTextColor="#9ca3af"
+            placeholderTextColor="#6b7280"
             value={search}
             onChangeText={setSearch}
             autoCorrect={false}
@@ -131,11 +131,11 @@ export default function BrowseCommunitiesScreen() {
       >
         {loading ? (
           <View style={styles.emptyState}>
-            <ActivityIndicator size="large" color="#84cc16" />
+            <ActivityIndicator size="large" color="#7c3aed" />
           </View>
         ) : filteredCommunities.length > 0 ? (
           filteredCommunities.map((community) => (
-            <View key={community.id} style={styles.card}>
+            <LiquidCard intensity={40} key={community.id} style={styles.card}>
               <View style={styles.cardHeader}>
                 <View style={styles.communityIconContainer}>
                   <Text style={styles.communityIconText}>👥</Text>
@@ -162,7 +162,7 @@ export default function BrowseCommunitiesScreen() {
                   <Text style={styles.viewButtonText}>View Group</Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            </LiquidCard>
           ))
         ) : (
           <View style={styles.emptyState}>
@@ -179,7 +179,7 @@ export default function BrowseCommunitiesScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f9fafb', // Light grey background
+    backgroundColor: '#0f0f1a',
   },
   header: {
     flexDirection: 'row',
@@ -192,15 +192,15 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#111827', // Dark slate/grey
+    color: '#f0f0ff',
   },
   headerSubtitle: {
     fontSize: 14,
-    color: '#6b7280', // Slate grey
+    color: '#9ca3af',
     marginTop: 2,
   },
   createButton: {
-    backgroundColor: '#84cc16', // Scoop brand lime green
+    backgroundColor: '#7c3aed',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 12,
@@ -217,11 +217,11 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
+    backgroundColor: 'rgba(20, 20, 30, 0.6)',
     borderRadius: 12,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: 'rgba(255,255,255,0.1)',
     height: 48,
     marginBottom: 12,
   },
@@ -232,7 +232,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 15,
-    color: '#111827',
+    color: '#f0f0ff',
   },
   clearIcon: {
     fontSize: 12,
@@ -249,22 +249,22 @@ const styles = StyleSheet.create({
   locationTab: {
     paddingHorizontal: 14,
     paddingVertical: 8,
-    backgroundColor: '#ffffff',
+    backgroundColor: 'rgba(20, 20, 30, 0.6)',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   locationTabSelected: {
-    backgroundColor: '#84cc16',
-    borderColor: '#84cc16',
+    backgroundColor: '#7c3aed',
+    borderColor: '#7c3aed',
   },
   locationText: {
     fontSize: 13,
     fontWeight: '500',
-    color: '#4b5563',
+    color: '#9ca3af',
   },
   locationTextSelected: {
-    color: '#ffffff',
+    color: '#f0f0ff',
   },
   scrollList: {
     flex: 1,
@@ -275,16 +275,8 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   card: {
-    backgroundColor: '#ffffff',
     borderRadius: 16,
     padding: 16,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -296,7 +288,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 10,
-    backgroundColor: 'rgba(132, 204, 22, 0.1)', // Translucent lime
+    backgroundColor: 'rgba(132, 204, 22, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -304,7 +296,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
   },
   locationBadge: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: 'rgba(255,255,255,0.05)',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
@@ -312,17 +304,17 @@ const styles = StyleSheet.create({
   locationBadgeText: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#4b5563',
+    color: '#9ca3af',
   },
   cardTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#111827',
+    color: '#f0f0ff',
     marginBottom: 6,
   },
   cardDescription: {
     fontSize: 13,
-    color: '#6b7280',
+    color: '#9ca3af',
     lineHeight: 18,
     marginBottom: 16,
   },
@@ -331,16 +323,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
+    borderTopColor: 'rgba(255,255,255,0.05)',
     paddingTop: 12,
   },
   memberCountText: {
     fontSize: 12,
-    color: '#4b5563',
+    color: '#9ca3af',
     fontWeight: '500',
   },
   viewButton: {
-    backgroundColor: '#111827',
+    backgroundColor: '#7c3aed',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 8,
@@ -362,12 +354,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#111827',
+    color: '#f0f0ff',
     marginBottom: 4,
   },
   emptySubtitle: {
     fontSize: 13,
-    color: '#6b7280',
+    color: '#9ca3af',
     textAlign: 'center',
   },
 });

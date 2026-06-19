@@ -7,6 +7,8 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { doc, getDoc, updateDoc, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import LiquidCard from '@/components/LiquidCard';
+import MatrixBackground from '@/components/MatrixBackground';
 
 export default function EditCommunityScreen() {
   const router = useRouter();
@@ -182,7 +184,8 @@ export default function EditCommunityScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" backgroundColor="#0f0f1a" />
+      <MatrixBackground />
       <View style={styles.navHeader}>
         <TouchableOpacity 
           style={styles.backButton} 
@@ -202,85 +205,89 @@ export default function EditCommunityScreen() {
       >
         <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
           {/* Form Fields */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>Community Name *</Text>
-            <TextInput
-              style={[styles.input, isProcessing && styles.disabledInput]}
-              placeholder="e.g. Koramangala Iron Club"
-              placeholderTextColor="#9ca3af"
-              value={name}
-              onChangeText={setName}
-              editable={!isProcessing}
-            />
-          </View>
+          <LiquidCard intensity={60}>
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>Community Name *</Text>
+              <TextInput
+                style={[styles.input, isProcessing && styles.disabledInput]}
+                placeholder="e.g. Koramangala Iron Club"
+                placeholderTextColor="#6b7280"
+                value={name}
+                onChangeText={setName}
+                editable={!isProcessing}
+              />
+            </View>
 
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>Location Area *</Text>
-            <TextInput
-              style={[styles.input, isProcessing && styles.disabledInput]}
-              placeholder="e.g. Koramangala"
-              placeholderTextColor="#9ca3af"
-              value={locationArea}
-              onChangeText={setLocationArea}
-              editable={!isProcessing}
-            />
-          </View>
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>Location Area *</Text>
+              <TextInput
+                style={[styles.input, isProcessing && styles.disabledInput]}
+                placeholder="e.g. Koramangala"
+                placeholderTextColor="#6b7280"
+                value={locationArea}
+                onChangeText={setLocationArea}
+                editable={!isProcessing}
+              />
+            </View>
 
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>Description</Text>
-            <TextInput
-              style={[styles.input, styles.textArea, isProcessing && styles.disabledInput]}
-              placeholder="Tell people what supplement brands you plan to order, delivery areas, etc."
-              placeholderTextColor="#9ca3af"
-              value={description}
-              onChangeText={setDescription}
-              multiline
-              numberOfLines={4}
-              editable={!isProcessing}
-            />
-          </View>
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>Description</Text>
+              <TextInput
+                style={[styles.input, styles.textArea, isProcessing && styles.disabledInput]}
+                placeholder="Tell people what supplement brands you plan to order, delivery areas, etc."
+                placeholderTextColor="#6b7280"
+                value={description}
+                onChangeText={setDescription}
+                multiline
+                numberOfLines={4}
+                editable={!isProcessing}
+              />
+            </View>
 
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>WhatsApp Group Link (Optional)</Text>
-            <TextInput
-              style={[styles.input, isProcessing && styles.disabledInput]}
-              placeholder="https://chat.whatsapp.com/..."
-              placeholderTextColor="#9ca3af"
-              value={whatsappLink}
-              onChangeText={setWhatsappLink}
-              autoCapitalize="none"
-              keyboardType="url"
-              editable={!isProcessing}
-            />
-          </View>
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>WhatsApp Group Link (Optional)</Text>
+              <TextInput
+                style={[styles.input, isProcessing && styles.disabledInput]}
+                placeholder="https://chat.whatsapp.com/..."
+                placeholderTextColor="#6b7280"
+                value={whatsappLink}
+                onChangeText={setWhatsappLink}
+                autoCapitalize="none"
+                keyboardType="url"
+                editable={!isProcessing}
+              />
+            </View>
 
-          {/* Submit Button */}
-          <TouchableOpacity
-            style={[styles.submitButton, isProcessing && styles.disabledButton]}
-            onPress={handleSave}
-            activeOpacity={0.8}
-            disabled={isProcessing}
-          >
-            {isProcessing ? (
-              <ActivityIndicator color="#ffffff" />
-            ) : (
-              <Text style={styles.submitButtonText}>Save Changes</Text>
-            )}
-          </TouchableOpacity>
-
-          {/* Delete Button */}
-          <View style={styles.dangerZone}>
-            <Text style={styles.dangerTitle}>Danger Zone</Text>
-            <Text style={styles.dangerDesc}>Once you disband a community, there is no going back. Please be certain.</Text>
+            {/* Submit Button */}
             <TouchableOpacity
-              style={[styles.deleteButton, isProcessing && styles.disabledButton]}
-              onPress={handleDisband}
+              style={[styles.submitButton, isProcessing && styles.disabledButton]}
+              onPress={handleSave}
               activeOpacity={0.8}
               disabled={isProcessing}
             >
-              <Text style={styles.deleteButtonText}>Disband Community</Text>
+              {isProcessing ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <Text style={styles.submitButtonText}>Save Changes</Text>
+              )}
             </TouchableOpacity>
-          </View>
+          </LiquidCard>
+
+          {/* Delete Button */}
+          <LiquidCard intensity={60} style={{ borderColor: 'rgba(220, 38, 38, 0.3)', borderWidth: 1 }}>
+            <View style={styles.dangerZone}>
+              <Text style={styles.dangerTitle}>Danger Zone</Text>
+              <Text style={styles.dangerDesc}>Once you disband a community, there is no going back. Please be certain.</Text>
+              <TouchableOpacity
+                style={[styles.deleteButton, isProcessing && styles.disabledButton]}
+                onPress={handleDisband}
+                activeOpacity={0.8}
+                disabled={isProcessing}
+              >
+                <Text style={styles.deleteButtonText}>Disband Community</Text>
+              </TouchableOpacity>
+            </View>
+          </LiquidCard>
 
         </ScrollView>
       </KeyboardAvoidingView>
@@ -291,7 +298,7 @@ export default function EditCommunityScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#0f0f1a',
   },
   navHeader: {
     flexDirection: 'row',
@@ -300,24 +307,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-    backgroundColor: '#ffffff',
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: '#0f0f1a',
   },
   backButton: {
     paddingVertical: 6,
     paddingHorizontal: 12,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 8,
   },
   backButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
+    color: '#a78bfa',
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#111827',
+    color: '#f0f0ff',
   },
   contentContainer: {
     padding: 20,
@@ -325,24 +332,25 @@ const styles = StyleSheet.create({
   },
   fieldContainer: {
     gap: 6,
+    marginBottom: 16,
   },
   fieldLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#4b5563',
+    color: '#f0f0ff',
   },
   input: {
-    backgroundColor: '#ffffff',
+    backgroundColor: 'rgba(20, 20, 30, 0.6)',
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: 'rgba(255,255,255,0.1)',
     borderRadius: 12,
     paddingHorizontal: 16,
     height: 48,
     fontSize: 15,
-    color: '#111827',
+    color: '#f0f0ff',
   },
   disabledInput: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     color: '#9ca3af',
   },
   textArea: {
@@ -352,7 +360,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   submitButton: {
-    backgroundColor: '#84cc16',
+    backgroundColor: '#7c3aed',
     borderRadius: 12,
     height: 52,
     alignItems: 'center',
@@ -368,34 +376,30 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   dangerZone: {
-    marginTop: 24,
-    paddingTop: 24,
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
     gap: 8,
   },
   dangerTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#dc2626',
+    color: '#ef4444',
   },
   dangerDesc: {
     fontSize: 13,
-    color: '#6b7280',
+    color: '#9ca3af',
     lineHeight: 18,
     marginBottom: 8,
   },
   deleteButton: {
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(220, 38, 38, 0.1)',
     borderWidth: 1,
-    borderColor: '#dc2626',
+    borderColor: 'rgba(220, 38, 38, 0.3)',
     borderRadius: 12,
     height: 52,
     alignItems: 'center',
     justifyContent: 'center',
   },
   deleteButtonText: {
-    color: '#dc2626',
+    color: '#ef4444',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -407,7 +411,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 12,
-    color: '#6b7280',
+    color: '#9ca3af',
     fontSize: 14,
     fontWeight: '500',
   },

@@ -4,6 +4,8 @@ import { useRouter } from 'expo-router';
 import { collection, addDoc } from 'firebase/firestore';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { db, auth } from '@/lib/firebase';
+import LiquidCard from '@/components/LiquidCard';
+import MatrixBackground from '@/components/MatrixBackground';
 
 export default function CreateCommunityScreen() {
   const router = useRouter();
@@ -93,7 +95,8 @@ export default function CreateCommunityScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" backgroundColor="#0f0f1a" />
+      <MatrixBackground />
       <View style={styles.navHeader}>
         <TouchableOpacity 
           style={styles.backButton} 
@@ -110,76 +113,78 @@ export default function CreateCommunityScreen() {
         style={{ flex: 1 }}
       >
         <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
-          <Text style={styles.description}>
-            Launch a supplement buying group in your locality. Group buying helps unlock wholesaler MOQ prices.
-          </Text>
-
-          {errorMsg !== "" && (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorText}>⚠️ {errorMsg}</Text>
-            </View>
-          )}
-
-          {/* Form Fields */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>Community Name *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. Koramangala Iron Club"
-              placeholderTextColor="#9ca3af"
-              value={name}
-              onChangeText={setName}
-            />
-          </View>
-
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>Location Area *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. Koramangala"
-              placeholderTextColor="#9ca3af"
-              value={locationArea}
-              onChangeText={setLocationArea}
-            />
-          </View>
-
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>Description</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              placeholder="Tell people what supplement brands you plan to order, delivery areas, etc."
-              placeholderTextColor="#9ca3af"
-              value={description}
-              onChangeText={setDescription}
-              multiline
-              numberOfLines={4}
-            />
-          </View>
-
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>WhatsApp Group Link (Optional)</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="https://chat.whatsapp.com/..."
-              placeholderTextColor="#9ca3af"
-              value={whatsappLink}
-              onChangeText={setWhatsappLink}
-              autoCapitalize="none"
-              keyboardType="url"
-            />
-          </View>
-
-          {/* Submit Button */}
-          <TouchableOpacity
-            style={[styles.submitButton, isProcessing && styles.disabledButton]}
-            onPress={handleCreate}
-            activeOpacity={0.8}
-            disabled={isProcessing}
-          >
-            <Text style={styles.submitButtonText}>
-              {isProcessing ? "Processing..." : "Create Group"}
+          <LiquidCard intensity={60}>
+            <Text style={styles.description}>
+              Launch a supplement buying group in your locality. Group buying helps unlock wholesaler MOQ prices.
             </Text>
-          </TouchableOpacity>
+
+            {errorMsg !== "" && (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>⚠️ {errorMsg}</Text>
+              </View>
+            )}
+
+            {/* Form Fields */}
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>Community Name *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. Koramangala Iron Club"
+                placeholderTextColor="#6b7280"
+                value={name}
+                onChangeText={setName}
+              />
+            </View>
+
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>Location Area *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. Koramangala"
+                placeholderTextColor="#6b7280"
+                value={locationArea}
+                onChangeText={setLocationArea}
+              />
+            </View>
+
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>Description</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                placeholder="Tell people what supplement brands you plan to order, delivery areas, etc."
+                placeholderTextColor="#6b7280"
+                value={description}
+                onChangeText={setDescription}
+                multiline
+                numberOfLines={4}
+              />
+            </View>
+
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>WhatsApp Group Link (Optional)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="https://chat.whatsapp.com/..."
+                placeholderTextColor="#6b7280"
+                value={whatsappLink}
+                onChangeText={setWhatsappLink}
+                autoCapitalize="none"
+                keyboardType="url"
+              />
+            </View>
+
+            {/* Submit Button */}
+            <TouchableOpacity
+              style={[styles.submitButton, isProcessing && styles.disabledButton]}
+              onPress={handleCreate}
+              activeOpacity={0.8}
+              disabled={isProcessing}
+            >
+              <Text style={styles.submitButtonText}>
+                {isProcessing ? "Processing..." : "Create Group"}
+              </Text>
+            </TouchableOpacity>
+          </LiquidCard>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -189,7 +194,7 @@ export default function CreateCommunityScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#0f0f1a',
   },
   navHeader: {
     flexDirection: 'row',
@@ -198,24 +203,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-    backgroundColor: '#ffffff',
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: '#0f0f1a',
   },
   backButton: {
     paddingVertical: 6,
     paddingHorizontal: 12,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 8,
   },
   backButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
+    color: '#a78bfa',
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#111827',
+    color: '#f0f0ff',
   },
   contentContainer: {
     padding: 20,
@@ -223,40 +228,41 @@ const styles = StyleSheet.create({
   },
   description: {
     fontSize: 14,
-    color: '#6b7280',
+    color: '#9ca3af',
     lineHeight: 20,
     marginBottom: 8,
   },
   errorBox: {
-    backgroundColor: '#fee2e2',
-    borderColor: '#fca5a5',
+    backgroundColor: 'rgba(220, 38, 38, 0.1)',
+    borderColor: 'rgba(220, 38, 38, 0.3)',
     borderWidth: 1,
     borderRadius: 10,
     padding: 12,
     marginBottom: 8,
   },
   errorText: {
-    color: '#b91c1c',
+    color: '#ef4444',
     fontSize: 13,
     fontWeight: '600',
   },
   fieldContainer: {
     gap: 6,
+    marginBottom: 16,
   },
   fieldLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#4b5563',
+    color: '#f0f0ff',
   },
   input: {
-    backgroundColor: '#ffffff',
+    backgroundColor: 'rgba(20, 20, 30, 0.6)',
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: 'rgba(255,255,255,0.1)',
     borderRadius: 12,
     paddingHorizontal: 16,
     height: 48,
     fontSize: 15,
-    color: '#111827',
+    color: '#f0f0ff',
   },
   textArea: {
     height: 100,
@@ -265,7 +271,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   submitButton: {
-    backgroundColor: '#84cc16',
+    backgroundColor: '#7c3aed',
     borderRadius: 12,
     height: 52,
     alignItems: 'center',

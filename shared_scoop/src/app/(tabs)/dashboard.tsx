@@ -14,10 +14,9 @@ import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { db, auth } from '@/lib/firebase';
 import { Community } from '../../lib/types';
+import MatrixBackground from '@/components/MatrixBackground';
+import LiquidCard from '@/components/LiquidCard';
 
-// ─── Memoized Card Component ──────────────────────────────────────────────────
-// Extracted so FlatList's built-in shouldComponentUpdate/React.memo comparison
-// prevents re-rendering cards that haven't changed when a sibling updates.
 interface CommunityCardProps {
   community: Community;
   currentUserId: string;
@@ -26,11 +25,10 @@ interface CommunityCardProps {
 
 const CommunityCard = React.memo(({ community, currentUserId, onPress }: CommunityCardProps) => {
   const isAdmin = community.admin_uid === currentUserId;
-  // Use members array length from the document itself — no separate listener needed.
   const memberCount = Array.isArray(community.members) ? community.members.length : 0;
 
   return (
-    <View style={styles.card}>
+    <LiquidCard intensity={40} style={styles.card}>
       <View style={styles.cardHeader}>
         <View style={styles.communityIconContainer}>
           <Text style={styles.communityIconText}>👥</Text>
@@ -62,11 +60,10 @@ const CommunityCard = React.memo(({ community, currentUserId, onPress }: Communi
           <Text style={styles.viewButtonText}>View Group</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </LiquidCard>
   );
 });
 
-// ─── Screen ───────────────────────────────────────────────────────────────────
 export default function DashboardScreen() {
   const router = useRouter();
 
@@ -75,7 +72,6 @@ export default function DashboardScreen() {
   const [myCommunities, setMyCommunities] = useState<Community[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // ── Auth listener (stable, runs once) ──────────────────────────────────────
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
@@ -84,9 +80,6 @@ export default function DashboardScreen() {
     return () => unsubscribe();
   }, []);
 
-  // ── Firestore listener — keyed on uid string, NOT the user object ──────────
-  // Tying to `currentUser` (object) would create a new listener on every auth
-  // event that changes the object reference even if the uid is identical.
   useEffect(() => {
     const uid = currentUser?.uid;
 
@@ -96,8 +89,6 @@ export default function DashboardScreen() {
       return;
     }
 
-    // isLoading flips false the instant the first snapshot payload arrives —
-    // not after any external network promise.
     setLoading(true);
 
     const q = query(
@@ -111,10 +102,8 @@ export default function DashboardScreen() {
         const list: Community[] = snapshot.docs.map(
           (d) => ({ id: d.id, ...d.data() } as Community)
         );
-        // Alphabetical sort is O(n log n) but happens off the render thread.
         list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         setMyCommunities(list);
-        // Loading flips false on first snapshot, regardless of list size.
         setLoading(false);
       },
       (error) => {
@@ -123,11 +112,9 @@ export default function DashboardScreen() {
       }
     );
 
-    // Explicit cleanup — prevents duplicate active socket pipelines on uid change.
     return () => unsubscribe();
   }, [currentUser?.uid]);
 
-  // ── Stable navigation callback — does NOT change across re-renders ──────────
   const handleViewCommunity = useCallback(
     (id: string) => {
       router.push(`/community/${id}`);
@@ -135,7 +122,6 @@ export default function DashboardScreen() {
     [router]
   );
 
-  // ── FlatList render item — stable reference via useCallback ────────────────
   const renderItem = useCallback(
     ({ item }: { item: Community }) => (
       <CommunityCard
@@ -147,10 +133,8 @@ export default function DashboardScreen() {
     [currentUser?.uid, handleViewCommunity]
   );
 
-  // ── Stable key extractor ───────────────────────────────────────────────────
   const keyExtractor = useCallback((item: Community) => item.id, []);
 
-  // ── Header component — memoized so it doesn't re-create on list changes ────
   const ListHeaderComponent = useMemo(
     () => (
       <View style={styles.header}>
@@ -170,12 +154,11 @@ export default function DashboardScreen() {
     [router]
   );
 
-  // ── Empty / loading component ──────────────────────────────────────────────
   const ListEmptyComponent = useMemo(() => {
     if (loading) {
       return (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#84cc16" />
+          <ActivityIndicator size="large" color="#7c3aed" />
         </View>
       );
     }
@@ -196,12 +179,11 @@ export default function DashboardScreen() {
     );
   }, [loading, router]);
 
-  // ── Auth initializing — root layout gate shows a spinner; this is a fallback
   if (authLoading) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#84cc16" />
+          <ActivityIndicator size="large" color="#7c3aed" />
           <Text style={styles.loadingText}>Initializing authentication...</Text>
         </View>
       </SafeAreaView>
@@ -210,8 +192,8 @@ export default function DashboardScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" />
-
+      <StatusBar barStyle="light-content" />
+      <MatrixBackground />
       <FlatList
         data={myCommunities}
         keyExtractor={keyExtractor}
@@ -220,14 +202,9 @@ export default function DashboardScreen() {
         ListEmptyComponent={ListEmptyComponent}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-        // ── Performance props ──────────────────────────────────────────────
-        // Render only 5 cards on first frame; load more as the user scrolls.
         initialNumToRender={5}
-        // Keep 3 screen-heights of cards in memory (1 visible + 1 above + 1 below).
         windowSize={3}
-        // Process at most 5 new cards per JS batch to avoid frame drops.
         maxToRenderPerBatch={5}
-        // Prevents FlatList from measuring items on every scroll event.
         removeClippedSubviews={true}
       />
     </SafeAreaView>
@@ -237,7 +214,7 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#0f0f1a',
   },
   header: {
     flexDirection: 'row',
@@ -250,15 +227,15 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#111827',
+    color: '#f0f0ff',
   },
   headerSubtitle: {
     fontSize: 14,
-    color: '#6b7280',
+    color: '#9ca3af',
     marginTop: 2,
   },
   createButton: {
-    backgroundColor: '#84cc16',
+    backgroundColor: '#7c3aed',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 12,
@@ -274,16 +251,8 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   card: {
-    backgroundColor: '#ffffff',
     borderRadius: 16,
     padding: 16,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -318,7 +287,7 @@ const styles = StyleSheet.create({
     color: '#d97706',
   },
   locationBadge: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: 'rgba(255,255,255,0.05)',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
@@ -326,17 +295,17 @@ const styles = StyleSheet.create({
   locationBadgeText: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#4b5563',
+    color: '#9ca3af',
   },
   cardTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#111827',
+    color: '#f0f0ff',
     marginBottom: 6,
   },
   cardDescription: {
     fontSize: 13,
-    color: '#6b7280',
+    color: '#9ca3af',
     lineHeight: 18,
     marginBottom: 16,
   },
@@ -345,16 +314,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
+    borderTopColor: 'rgba(255,255,255,0.05)',
     paddingTop: 12,
   },
   memberCountText: {
     fontSize: 12,
-    color: '#4b5563',
+    color: '#9ca3af',
     fontWeight: '500',
   },
   viewButton: {
-    backgroundColor: '#111827',
+    backgroundColor: '#7c3aed',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 8,
@@ -377,17 +346,17 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#111827',
+    color: '#f0f0ff',
     marginBottom: 8,
   },
   emptySubtitle: {
     fontSize: 14,
-    color: '#6b7280',
+    color: '#9ca3af',
     textAlign: 'center',
     marginBottom: 20,
   },
   browseButton: {
-    backgroundColor: '#84cc16',
+    backgroundColor: '#7c3aed',
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 12,
@@ -405,7 +374,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 12,
-    color: '#6b7280',
+    color: '#9ca3af',
     fontSize: 14,
     fontWeight: '500',
   },
