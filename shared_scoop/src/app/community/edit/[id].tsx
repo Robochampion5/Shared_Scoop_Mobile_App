@@ -22,11 +22,15 @@ export default function EditCommunityScreen() {
   const [locationArea, setLocationArea] = useState('');
   const [description, setDescription] = useState('');
   const [whatsappLink, setWhatsappLink] = useState('');
+  
+  const [orderId, setOrderId] = useState<string | null>(null);
+  const [totalKgRequired, setTotalKgRequired] = useState('');
+  const [moqError, setMoqError] = useState('');
 
   useEffect(() => {
     if (!communityId) return;
 
-    const fetchCommunity = async () => {
+    const fetchCommunityAndOrder = async () => {
       try {
         const docRef = doc(db, 'communities', communityId);
         const docSnap = await getDoc(docRef);
@@ -38,22 +42,43 @@ export default function EditCommunityScreen() {
           setWhatsappLink(data.whatsapp_link || '');
         } else {
           Alert.alert('Error', 'Community not found', [{ text: 'OK', onPress: () => router.back() }], { cancelable: false });
+          return;
+        }
+
+        const ordersRef = collection(db, 'orders');
+        const q = query(ordersRef, where('community_id', '==', communityId), where('status', '==', 'pooling'));
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          const orderDoc = querySnapshot.docs[0];
+          setOrderId(orderDoc.id);
+          setTotalKgRequired(orderDoc.data().total_kg_required?.toString() || '');
         }
       } catch (error) {
-        console.error('Error fetching community:', error);
-        Alert.alert('Error', 'Failed to load community details', [{ text: 'OK', onPress: () => router.back() }], { cancelable: false });
+        console.error('Error fetching details:', error);
+        Alert.alert('Error', 'Failed to load details', [{ text: 'OK', onPress: () => router.back() }], { cancelable: false });
       } finally {
         setLoading(false);
       }
     };
 
-    fetchCommunity();
+    fetchCommunityAndOrder();
   }, [communityId]);
 
   const handleSave = async () => {
+    setMoqError('');
+
     if (!name.trim() || !locationArea.trim()) {
       Alert.alert('Validation Error', 'Name and Location Area are required.', [{ text: 'OK' }], { cancelable: true });
       return;
+    }
+
+    let parsedMoq = 15;
+    if (orderId && totalKgRequired) {
+      parsedMoq = parseInt(totalKgRequired, 10);
+      if (isNaN(parsedMoq) || parsedMoq < 15) {
+        setMoqError('MOQ cannot be set below 15kg wholesale minimum.');
+        return;
+      }
     }
 
     if (isProcessing) return;
@@ -69,6 +94,14 @@ export default function EditCommunityScreen() {
         description: description.trim(),
         whatsapp_link: whatsappLink.trim(),
       });
+
+      if (orderId && totalKgRequired) {
+        const orderRef = doc(db, 'orders', orderId);
+        await updateDoc(orderRef, {
+          total_kg_required: parsedMoq
+        });
+      }
+
       isSuccess = true;
     } catch (error: any) {
       console.error('Firestore Transaction Failed:', error);
@@ -206,6 +239,27 @@ export default function EditCommunityScreen() {
         <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
           {/* Form Fields */}
           <LiquidCard intensity={60}>
+            {moqError !== '' && (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>{moqError}</Text>
+              </View>
+            )}
+
+            {orderId && (
+              <View style={styles.fieldContainer}>
+                <Text style={styles.fieldLabel}>Active Order MOQ (kg) *</Text>
+                <TextInput
+                  style={[styles.input, isProcessing && styles.disabledInput]}
+                  placeholder="Minimum 15"
+                  placeholderTextColor="#6b7280"
+                  keyboardType="number-pad"
+                  value={totalKgRequired}
+                  onChangeText={setTotalKgRequired}
+                  editable={!isProcessing}
+                />
+              </View>
+            )}
+
             <View style={styles.fieldContainer}>
               <Text style={styles.fieldLabel}>Community Name *</Text>
               <TextInput
@@ -414,5 +468,18 @@ const styles = StyleSheet.create({
     color: '#9ca3af',
     fontSize: 14,
     fontWeight: '500',
+  },
+  errorBox: {
+    backgroundColor: 'rgba(220, 38, 38, 0.1)',
+    borderColor: 'rgba(220, 38, 38, 0.3)',
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 16,
+  },
+  errorText: {
+    color: '#ef4444',
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

@@ -96,6 +96,14 @@ service cloud.firestore {
         && request.resource.data.admin_uid == resource.data.admin_uid;
 
       allow delete: if false;
+
+      match /messages/{messageId} {
+        // Only members in the community's array can read/write
+        allow read, create: if isAuthenticated() 
+          && request.auth.uid in get(/databases/$(database)/documents/communities/$(communityId)).data.members;
+        // Immutable ledger: No editing or deleting chat history
+        allow update, delete: if false; 
+      }
     }
 
 
@@ -199,7 +207,13 @@ service cloud.firestore {
         // Lock all structural fields — none of these may change after creation.
         && request.resource.data.community_id == resource.data.community_id
         && request.resource.data.product_id == resource.data.product_id
-        && request.resource.data.total_kg_required == resource.data.total_kg_required
+        // Admin can edit MOQ ONLY if order is pooling
+        && (request.resource.data.total_kg_required != resource.data.total_kg_required 
+              ? resource.data.status == 'pooling' 
+              : true)
+        // Hackathon business rule: MOQ cannot drop below 15kg
+        && request.resource.data.total_kg_required >= 15
+        && request.resource.data.total_kg_required >= resource.data.total_kg_committed
         && request.resource.data.created_at == resource.data.created_at
         // Lock total_kg_committed — prevents admin spoofing of MOQ progress.
         // The true total is computed dynamically from contributions on the client.

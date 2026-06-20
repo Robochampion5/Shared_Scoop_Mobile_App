@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
-import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
 import { db, auth } from '@/lib/firebase';
 import { Community } from '../../lib/types';
 import MatrixBackground from '@/components/MatrixBackground';
@@ -71,6 +71,15 @@ export default function DashboardScreen() {
   const [authLoading, setAuthLoading] = useState(true);
   const [myCommunities, setMyCommunities] = useState<Community[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      // The Bouncer in index.tsx will automatically detect this and route you to /auth
+    } catch (error) {
+      console.error("Error signing out: ", error);
+    }
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -142,13 +151,24 @@ export default function DashboardScreen() {
           <Text style={styles.headerTitle}>My Dashboard</Text>
           <Text style={styles.headerSubtitle}>Communities you belong to</Text>
         </View>
-        <TouchableOpacity
-          style={styles.createButton}
-          activeOpacity={0.8}
-          onPress={() => router.push('/community/create')}
-        >
-          <Text style={styles.createButtonText}>+ Create</Text>
-        </TouchableOpacity>
+        
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.logoutButton}
+            activeOpacity={0.8}
+            onPress={handleLogout}
+          >
+            <Text style={styles.logoutButtonText}>Sign Out</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.createButton}
+            activeOpacity={0.8}
+            onPress={() => router.push('/community/create')}
+          >
+            <Text style={styles.createButtonText}>+ Create</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     ),
     [router]
@@ -233,6 +253,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#9ca3af',
     marginTop: 2,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  logoutButton: {
+    backgroundColor: 'rgba(220, 38, 38, 0.1)', // Translucent glass red
+    borderWidth: 1,
+    borderColor: 'rgba(220, 38, 38, 0.3)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    justifyContent: 'center',
+  },
+  logoutButtonText: {
+    color: '#ef4444',
+    fontWeight: '600',
+    fontSize: 14,
   },
   createButton: {
     backgroundColor: '#7c3aed',
