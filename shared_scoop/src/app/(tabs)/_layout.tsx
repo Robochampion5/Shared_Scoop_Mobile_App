@@ -13,7 +13,7 @@ export default function TabLayout() {
       tabBarInactiveTintColor: '#6b7280',
       tabBarStyle: {
         position: 'absolute',
-        bottom: Platform.OS === 'ios' ? 24 : 16,
+        bottom: Platform.OS === 'ios' ? 34 : 20,
         left: 20,
         right: 20,
         elevation: 0,
@@ -22,7 +22,11 @@ export default function TabLayout() {
         borderTopWidth: 0,
         backgroundColor: 'transparent',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)'
+        borderColor: 'rgba(255,255,255,0.08)',
+        paddingBottom: 0
+      },
+      tabBarItemStyle: {
+        paddingTop: Platform.OS === 'ios' ? 12 : 0
       },
       tabBarBackground: () => (
         <BlurView 

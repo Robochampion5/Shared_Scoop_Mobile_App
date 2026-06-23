@@ -11,6 +11,7 @@ interface Message {
   id: string;
   text: string;
   sender_uid: string;
+  sender_name?: string;
   timestamp: any;
 }
 
@@ -59,11 +60,11 @@ export default function CommunityChatScreen() {
       await addDoc(collection(db, 'communities', communityId, 'messages'), {
         text: textToSend,
         sender_uid: currentUser.uid,
+        sender_name: currentUser.displayName || 'Anonymous',
         timestamp: serverTimestamp(),
       });
     } catch (error) {
       console.error("Error sending message:", error);
-      // rollback locally if we want, or just show error
     } finally {
       setIsSending(false);
     }
@@ -74,6 +75,11 @@ export default function CommunityChatScreen() {
 
     return (
       <View style={[styles.messageRow, isMe ? styles.messageRowMe : styles.messageRowThem]}>
+        {!isMe && (
+          <View style={styles.senderNameContainer}>
+            <Text style={styles.senderNameText}>{item.sender_name || 'Anonymous'}</Text>
+          </View>
+        )}
         <View style={[styles.messageBubble, isMe ? styles.bubbleMe : styles.bubbleThem]}>
           <Text style={styles.messageText}>{item.text}</Text>
         </View>
@@ -170,15 +176,23 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   messageRow: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     width: '100%',
     marginBottom: 8,
   },
   messageRowMe: {
-    justifyContent: 'flex-end',
+    alignItems: 'flex-end',
   },
   messageRowThem: {
-    justifyContent: 'flex-start',
+    alignItems: 'flex-start',
+  },
+  senderNameContainer: {
+    marginBottom: 2,
+    marginLeft: 4,
+  },
+  senderNameText: {
+    color: '#9ca3af',
+    fontSize: 11,
   },
   messageBubble: {
     maxWidth: '80%',

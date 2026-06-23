@@ -1,7 +1,7 @@
 // Author: Adarsh Singh | Roll No: IC2025006
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, KeyboardAvoidingView, Platform, StatusBar } from 'react-native';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { useRouter } from 'expo-router';
@@ -10,6 +10,7 @@ import LiquidCard from '@/components/LiquidCard';
 
 export default function EmailAuthScreen() {
   const router = useRouter();
+  const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
@@ -18,6 +19,11 @@ export default function EmailAuthScreen() {
   const [errorMsg, setErrorMsg] = useState('');
 
   const handleAuth = async () => {
+    if (!isLogin && !displayName.trim()) {
+      setErrorMsg('Please provide a display name.');
+      return;
+    }
+
     if (!email.trim() || !password) {
       setErrorMsg('Please enter both email and password.');
       return;
@@ -37,7 +43,9 @@ export default function EmailAuthScreen() {
         router.replace('/(tabs)/dashboard');
       } else {
         const userCred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+        await updateProfile(userCred.user, { displayName: displayName.trim() });
         await setDoc(doc(db, 'users', userCred.user.uid), {
+          displayName: displayName.trim(),
           email: email.trim().toLowerCase(),
           phone: phoneNumber.trim(),
           created_at: serverTimestamp()
@@ -76,6 +84,18 @@ export default function EmailAuthScreen() {
               <View style={styles.errorBox}>
                 <Text style={styles.errorText}>⚠️ {errorMsg}</Text>
               </View>
+            )}
+
+            {!isLogin && (
+              <TextInput
+                style={styles.input}
+                placeholder="Display Name (e.g. Adarsh S.)"
+                placeholderTextColor="#6b7280"
+                autoCapitalize="words"
+                value={displayName}
+                onChangeText={setDisplayName}
+                editable={!isProcessing}
+              />
             )}
 
             <TextInput
@@ -127,6 +147,7 @@ export default function EmailAuthScreen() {
               onPress={() => {
                 setIsLogin(!isLogin);
                 setErrorMsg('');
+                setDisplayName('');
                 setPhoneNumber('');
               }}
               disabled={isProcessing}

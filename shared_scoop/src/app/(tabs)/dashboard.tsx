@@ -1,3 +1,4 @@
+// Author: Adarsh Singh | Roll No: IC2025006
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
@@ -116,7 +117,8 @@ export default function DashboardScreen() {
         setLoading(false);
       },
       (error) => {
-        console.error('Error querying communities (check composite index):', error);
+        console.error('Firestore Error:', error);
+        signOut(auth);
         setLoading(false);
       }
     );
@@ -245,43 +247,43 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '700',
     color: '#f0f0ff',
   },
   headerSubtitle: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#9ca3af',
     marginTop: 2,
   },
   headerActions: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 6,
   },
   logoutButton: {
     backgroundColor: 'rgba(220, 38, 38, 0.1)', // Translucent glass red
     borderWidth: 1,
     borderColor: 'rgba(220, 38, 38, 0.3)',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 12,
     justifyContent: 'center',
   },
   logoutButtonText: {
     color: '#ef4444',
     fontWeight: '600',
-    fontSize: 14,
+    fontSize: 12,
   },
   createButton: {
     backgroundColor: '#7c3aed',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 12,
   },
   createButtonText: {
     color: '#ffffff',
     fontWeight: '600',
-    fontSize: 14,
+    fontSize: 12,
   },
   listContent: {
     paddingHorizontal: 20,
