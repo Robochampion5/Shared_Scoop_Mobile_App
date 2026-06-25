@@ -2,12 +2,12 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, StatusBar, ActivityIndicator, ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { doc, onSnapshot, query, collection, where, limit, updateDoc, arrayUnion } from 'firebase/firestore';
+import { doc, onSnapshot, query, collection, where, limit, updateDoc, arrayUnion, orderBy } from 'firebase/firestore';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { db, auth } from '@/lib/firebase';
-import { Community, Order } from '@/lib/types';
-import MatrixBackground from '@/components/MatrixBackground';
-import LiquidCard from '@/components/LiquidCard';
+import { db, auth } from '../../lib/firebase';
+import { Community, Order } from '../../lib/types';
+import MatrixBackground from '../../components/MatrixBackground';
+import LiquidCard from '../../components/LiquidCard';
 
 export default function CommunityHubScreen() {
   const router = useRouter();
@@ -48,6 +48,7 @@ export default function CommunityHubScreen() {
       collection(db, 'orders'),
       where('community_id', '==', communityId),
       where('status', '==', 'pooling'),
+      orderBy('created_at', 'desc'),
       limit(1)
     );
     
@@ -254,11 +255,12 @@ const styles = StyleSheet.create({
     color: '#f0f0ff',
   },
   scrollContent: {
-    padding: 20,
-    gap: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+    gap: 12,
   },
   panelCard: {
-    padding: 20,
+    padding: 16,
     borderRadius: 16,
   },
   panelHeader: {

@@ -3,9 +3,9 @@ import { View, Text, TouchableOpacity, TextInput, StyleSheet, SafeAreaView, Scro
 import { useRouter } from 'expo-router';
 import { collection, addDoc } from 'firebase/firestore';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { db, auth } from '@/lib/firebase';
-import LiquidCard from '@/components/LiquidCard';
-import MatrixBackground from '@/components/MatrixBackground';
+import { db, auth } from '../../lib/firebase';
+import LiquidCard from '../../components/LiquidCard';
+import MatrixBackground from '../../components/MatrixBackground';
 
 export default function CreateCommunityScreen() {
   const router = useRouter();

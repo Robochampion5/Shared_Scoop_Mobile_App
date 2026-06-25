@@ -2,10 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, FlatList, KeyboardAvoidingView, Platform, StatusBar } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { collection, query, orderBy, limit, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot, addDoc, serverTimestamp, where } from 'firebase/firestore';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { db, auth } from '@/lib/firebase';
-import MatrixBackground from '@/components/MatrixBackground';
+import { db, auth } from '../../../lib/firebase';
+import MatrixBackground from '../../../components/MatrixBackground';
+import LiquidCard from '../../../components/LiquidCard';
 
 interface Message {
   id: string;
@@ -24,6 +25,8 @@ export default function CommunityChatScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [memberStatus, setMemberStatus] = useState<string | null>(null);
+  const [loadingStatus, setLoadingStatus] = useState(true);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -33,7 +36,36 @@ export default function CommunityChatScreen() {
   }, []);
 
   useEffect(() => {
-    if (!communityId) return;
+    if (!currentUser || !communityId) {
+      setLoadingStatus(false);
+      return;
+    }
+    
+    setLoadingStatus(true);
+    const membershipQuery = query(
+      collection(db, 'memberships'),
+      where('community_id', '==', communityId),
+      where('user_id', '==', currentUser.uid),
+      limit(1)
+    );
+    
+    const unsubMembership = onSnapshot(membershipQuery, (snapshot) => {
+      if (!snapshot.empty) {
+        setMemberStatus(snapshot.docs[0].data().status);
+      } else {
+        setMemberStatus(null);
+      }
+      setLoadingStatus(false);
+    }, (error) => {
+      console.warn("Access restricted:", error.message);
+      setLoadingStatus(false);
+    });
+    
+    return () => unsubMembership();
+  }, [currentUser, communityId]);
+
+  useEffect(() => {
+    if (!communityId || memberStatus !== 'approved') return;
 
     const messagesRef = collection(db, 'communities', communityId, 'messages');
     const q = query(messagesRef, orderBy('timestamp', 'desc'), limit(50));
@@ -44,10 +76,12 @@ export default function CommunityChatScreen() {
         ...doc.data()
       })) as Message[];
       setMessages(fetched);
+    }, (error) => {
+      console.warn("Access restricted:", error.message);
     });
 
     return () => unsubscribe();
-  }, [communityId]);
+  }, [communityId, memberStatus]);
 
   const handleSend = async () => {
     if (!inputText.trim() || !currentUser || !communityId) return;
@@ -100,39 +134,53 @@ export default function CommunityChatScreen() {
         <View style={{ width: 60 }} />
       </View>
 
-      <KeyboardAvoidingView 
-        style={styles.container} 
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <FlatList
-          inverted
-          data={messages}
-          keyExtractor={item => item.id}
-          renderItem={renderItem}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-        />
-
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.input}
-            placeholder="Type a message..."
-            placeholderTextColor="#6b7280"
-            value={inputText}
-            onChangeText={setInputText}
-            multiline
-            maxLength={500}
-          />
-          <TouchableOpacity 
-            style={[styles.sendButton, (!inputText.trim() || isSending) && styles.sendButtonDisabled]}
-            onPress={handleSend}
-            disabled={!inputText.trim() || isSending}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.sendButtonText}>Send</Text>
-          </TouchableOpacity>
+      {loadingStatus ? (
+        <View style={styles.centeredContainer}>
+          <Text style={styles.loadingText}>Verifying access...</Text>
         </View>
-      </KeyboardAvoidingView>
+      ) : memberStatus !== 'approved' ? (
+        <View style={styles.centeredContainer}>
+          <LiquidCard intensity={40} style={styles.lockedCard}>
+            <Text style={styles.lockedIcon}>🔒</Text>
+            <Text style={styles.lockedText}>Your request to join this group buy is pending Admin approval.</Text>
+          </LiquidCard>
+        </View>
+      ) : (
+        <KeyboardAvoidingView 
+          style={styles.container} 
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        >
+          <FlatList
+            inverted
+            data={messages}
+            keyExtractor={item => item.id}
+            renderItem={renderItem}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+          />
+
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={styles.input}
+              placeholder="Type a message..."
+              placeholderTextColor="#6b7280"
+              value={inputText}
+              onChangeText={setInputText}
+              multiline
+              maxLength={500}
+            />
+            <TouchableOpacity 
+              style={[styles.sendButton, (!inputText.trim() || isSending) && styles.sendButtonDisabled]}
+              onPress={handleSend}
+              disabled={!inputText.trim() || isSending}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.sendButtonText}>{isSending ? '...' : 'Send'}</Text>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      )}
     </SafeAreaView>
   );
 }
@@ -213,7 +261,39 @@ const styles = StyleSheet.create({
   messageText: {
     color: '#f0f0ff',
     fontSize: 15,
-    lineHeight: 20,
+    lineHeight: 22,
+  },
+  centeredContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  loadingText: {
+    color: '#9ca3af',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  lockedCard: {
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+    width: '100%',
+  },
+  lockedIcon: {
+    fontSize: 48,
+    textAlign: 'center',
+    textShadowColor: 'rgba(124, 58, 237, 0.5)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 20,
+  },
+  lockedText: {
+    color: '#f0f0ff',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+    lineHeight: 24,
   },
   inputContainer: {
     flexDirection: 'row',

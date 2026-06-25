@@ -41,21 +41,12 @@ import {
   Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import {
-  collection,
-  query,
-  where,
-  onSnapshot,
-  doc,
-  updateDoc,
-  limit,
-  orderBy,
-  getDoc,
-} from 'firebase/firestore';
+import { doc, getDoc, updateDoc, deleteDoc, collection, query, where, onSnapshot, orderBy, limit } from 'firebase/firestore';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import * as Haptics from 'expo-haptics';
-import { db, auth } from '@/lib/firebase';
-import { Membership, Community } from '@/lib/types';
+import { db, auth } from '../../lib/firebase';
+import { Membership, Community } from '../../lib/types';
+import LiquidCard from '../../components/LiquidCard';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -80,33 +71,26 @@ interface MemberRowProps {
 }
 
 const MemberRow = memo(({ item, onApprove, onReject, isProcessing }: MemberRowProps) => {
-  const initials = item.displayName
-    .split(' ')
-    .map((w) => w[0])
-    .join('')
-    .substring(0, 2)
-    .toUpperCase();
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  };
 
   return (
-    <View style={styles.card}>
+    <LiquidCard intensity={40} style={styles.card}>
       <View style={styles.cardHeader}>
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{initials || '?'}</Text>
+          <Text style={styles.avatarText}>
+            {item.displayName.charAt(0).toUpperCase()}
+          </Text>
         </View>
         <View style={styles.cardInfo}>
-          <Text style={styles.cardName} numberOfLines={1}>
-            {item.displayName}
-          </Text>
-          <Text style={styles.cardEmail} numberOfLines={1}>
-            {item.displayEmail}
-          </Text>
-          <Text style={styles.cardDate}>
-            Requested {new Date(item.requestedAt).toLocaleDateString('en-IN', {
-              day: 'numeric',
-              month: 'short',
-              year: 'numeric',
-            })}
-          </Text>
+          <Text style={styles.cardName}>{item.displayName}</Text>
+          <Text style={styles.cardEmail}>{item.displayEmail}</Text>
+          <Text style={styles.cardDate}>{formatDate(item.requestedAt)}</Text>
         </View>
       </View>
 
@@ -129,7 +113,7 @@ const MemberRow = memo(({ item, onApprove, onReject, isProcessing }: MemberRowPr
           <Text style={styles.approveBtnText}>✓  Approve</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </LiquidCard>
   );
 });
 
@@ -232,7 +216,7 @@ export default function ManageMembersScreen() {
         }
       },
       (error) => {
-        console.error('ManageMembers listener error:', error);
+        console.warn("Access restricted:", error.message);
         if (isMounted.current) setLoadingData(false);
       }
     );
@@ -304,10 +288,7 @@ export default function ManageMembersScreen() {
       setPendingMembers((prev) => prev.filter((m) => m.id !== membershipId));
 
       try {
-        await updateDoc(doc(db, 'memberships', membershipId), {
-          status: 'rejected',
-          updatedAt: new Date().toISOString(),
-        });
+        await deleteDoc(doc(db, 'memberships', membershipId));
       } catch (error: any) {
         console.error('Reject failed:', error);
         // ROLLBACK
@@ -514,11 +495,7 @@ const styles = StyleSheet.create({
 
   // Card
   card: {
-    backgroundColor: '#1a1a2e',
-    borderRadius: 14,
     padding: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.07)',
     height: CARD_HEIGHT,
     justifyContent: 'space-between',
   },

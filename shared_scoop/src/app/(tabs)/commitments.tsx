@@ -2,10 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, FlatList, ActivityIndicator, StatusBar } from 'react-native';
 import { collection, query, where, onSnapshot, getDoc, doc } from 'firebase/firestore';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { db, auth } from '@/lib/firebase';
+import { db, auth } from '../../lib/firebase';
 import { useRouter } from 'expo-router';
-import MatrixBackground from '@/components/MatrixBackground';
-import LiquidCard from '@/components/LiquidCard';
+import MatrixBackground from '../../components/MatrixBackground';
+import LiquidCard from '../../components/LiquidCard';
 
 interface JoinedCommitment {
   id: string;
@@ -92,7 +92,7 @@ export default function CommitmentsScreen() {
       setCommitments(resolvedData);
       setLoading(false);
     }, (error) => {
-      console.error("Contributions listener failed:", error);
+      console.warn("Access restricted:", error.message);
       setLoading(false);
     });
 
@@ -106,7 +106,7 @@ export default function CommitmentsScreen() {
     const isOrderCompleted = order?.status === 'completed';
 
     return (
-      <LiquidCard intensity={40} style={[styles.card, isDelivered && styles.cardDelivered]}>
+      <LiquidCard intensity={40} style={[styles.card, isDelivered ? styles.cardDelivered : {}]}>
         <View style={styles.cardHeader}>
           <Text style={styles.productName}>
             {product?.name || "Unknown Product"}
@@ -222,9 +222,9 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   listContainer: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingBottom: 24,
-    gap: 16,
+    gap: 12,
   },
   card: {
     borderRadius: 16,
@@ -275,7 +275,7 @@ const styles = StyleSheet.create({
   },
   detailsRow: {
     flexDirection: 'row',
-    gap: 24,
+    gap: 16,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.05)',
     paddingTop: 12,
@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   detailLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#9ca3af',
     fontWeight: '500',
     textTransform: 'uppercase',
@@ -304,7 +304,7 @@ const styles = StyleSheet.create({
   },
   otpLabel: {
     color: '#9ca3af',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
     letterSpacing: 1,
     marginBottom: 8,

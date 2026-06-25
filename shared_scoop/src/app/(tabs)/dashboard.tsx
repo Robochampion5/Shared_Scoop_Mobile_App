@@ -13,10 +13,10 @@ import {
 import { useRouter } from 'expo-router';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
-import { db, auth } from '@/lib/firebase';
+import { db, auth } from '../../lib/firebase';
 import { Community } from '../../lib/types';
-import MatrixBackground from '@/components/MatrixBackground';
-import LiquidCard from '@/components/LiquidCard';
+import MatrixBackground from '../../components/MatrixBackground';
+import LiquidCard from '../../components/LiquidCard';
 
 interface CommunityCardProps {
   community: Community;
@@ -117,7 +117,7 @@ export default function DashboardScreen() {
         setLoading(false);
       },
       (error) => {
-        console.error('Firestore Error:', error);
+        console.warn("Access restricted:", error.message);
         signOut(auth);
         setLoading(false);
       }

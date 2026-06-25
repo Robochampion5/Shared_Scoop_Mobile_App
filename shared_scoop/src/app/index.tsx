@@ -3,8 +3,8 @@ import { useEffect, useState } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
-import MatrixBackground from '@/components/MatrixBackground';
+import { auth } from '../lib/firebase';
+import MatrixBackground from '../components/MatrixBackground';
 
 export default function RootIndex() {
   const router = useRouter();

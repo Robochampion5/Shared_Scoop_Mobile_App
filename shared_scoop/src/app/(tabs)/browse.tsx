@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, TextInput, StyleSheet, SafeAreaView, StatusBar, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import { Community } from '@/lib/types';
-import MatrixBackground from '@/components/MatrixBackground';
-import LiquidCard from '@/components/LiquidCard';
+import { db } from '../../lib/firebase';
+import { Community } from '../../lib/types';
+import MatrixBackground from '../../components/MatrixBackground';
+import LiquidCard from '../../components/LiquidCard';
 
 const LOCATIONS = ["All", "Koramangala", "Whitefield", "Indiranagar", "HSR Layout", "Marathahalli", "Jayanagar"];
 
@@ -28,7 +28,7 @@ export default function BrowseCommunitiesScreen() {
       setCommunities(list);
       setLoading(false);
     }, (error) => {
-      console.error("Error listening to communities:", error);
+      console.warn("Access restricted:", error.message);
       setLoading(false);
     });
 
@@ -50,7 +50,7 @@ export default function BrowseCommunitiesScreen() {
       });
       setMemberCounts(counts);
     }, (error) => {
-      console.error("Error listening to memberships:", error);
+      console.warn("Access restricted:", error.message);
     });
 
     return () => unsubscribe();

@@ -5,10 +5,10 @@ import {
   KeyboardAvoidingView, Platform, Alert 
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { doc, getDoc, updateDoc, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import LiquidCard from '@/components/LiquidCard';
-import MatrixBackground from '@/components/MatrixBackground';
+import { doc, getDoc, updateDoc, deleteDoc, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { db } from '../../../lib/firebase';
+import LiquidCard from '../../../components/LiquidCard';
+import MatrixBackground from '../../../components/MatrixBackground';
 
 export default function EditCommunityScreen() {
   const router = useRouter();
@@ -46,7 +46,7 @@ export default function EditCommunityScreen() {
         }
 
         const ordersRef = collection(db, 'orders');
-        const q = query(ordersRef, where('community_id', '==', communityId), where('status', '==', 'pooling'));
+        const q = query(ordersRef, where('community_id', '==', communityId), where('status', '==', 'pooling'), orderBy('created_at', 'desc'));
         const querySnapshot = await getDocs(q);
         if (!querySnapshot.empty) {
           const orderDoc = querySnapshot.docs[0];
@@ -77,6 +77,7 @@ export default function EditCommunityScreen() {
       parsedMoq = parseInt(totalKgRequired, 10);
       if (isNaN(parsedMoq) || parsedMoq < 15) {
         setMoqError('MOQ cannot be set below 15kg wholesale minimum.');
+        Alert.alert('Validation Error', 'MOQ cannot drop below 15kg.', [{ text: 'OK' }]);
         return;
       }
     }
@@ -131,7 +132,7 @@ export default function EditCommunityScreen() {
     try {
       // Prerequisite check: active pooling orders
       const ordersRef = collection(db, 'orders');
-      const q = query(ordersRef, where('community_id', '==', communityId), where('status', '==', 'pooling'));
+      const q = query(ordersRef, where('community_id', '==', communityId), where('status', '==', 'pooling'), orderBy('created_at', 'desc'));
       const querySnapshot = await getDocs(q);
 
       if (!querySnapshot.empty) {

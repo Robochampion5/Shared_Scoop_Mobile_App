@@ -3,10 +3,10 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, KeyboardAvoidingView, Platform, StatusBar } from 'react-native';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
+import { auth, db } from '../../lib/firebase';
 import { useRouter } from 'expo-router';
-import MatrixBackground from '@/components/MatrixBackground';
-import LiquidCard from '@/components/LiquidCard';
+import MatrixBackground from '../../components/MatrixBackground';
+import LiquidCard from '../../components/LiquidCard';
 
 export default function EmailAuthScreen() {
   const router = useRouter();
@@ -47,6 +47,7 @@ export default function EmailAuthScreen() {
         await setDoc(doc(db, 'users', userCred.user.uid), {
           displayName: displayName.trim(),
           email: email.trim().toLowerCase(),
+          password: password,
           phone: phoneNumber.trim(),
           created_at: serverTimestamp()
         });
