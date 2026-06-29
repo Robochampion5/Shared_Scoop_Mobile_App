@@ -43,7 +43,7 @@ export default function LiquidCard({
   children,
   onPress,
   style,
-  intensity = 60,
+  intensity = 40,
 }: LiquidCardProps) {
   const scale = useSharedValue(1);
 
@@ -88,7 +88,7 @@ export default function LiquidCard({
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: 24,
+    borderRadius: 20,
     overflow: 'hidden',
     backgroundColor: 'rgba(20, 20, 30, 0.45)',
     marginVertical: 8,
@@ -98,10 +98,8 @@ const styles = StyleSheet.create({
   },
   glassBorder: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: 24,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-    borderBottomColor: 'rgba(255, 255, 255, 0.02)',
-    borderRightColor: 'rgba(255, 255, 255, 0.02)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
 });

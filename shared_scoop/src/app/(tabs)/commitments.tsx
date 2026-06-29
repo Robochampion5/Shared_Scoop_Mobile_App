@@ -225,6 +225,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 24,
     gap: 12,
+    flexGrow: 1,
   },
   card: {
     borderRadius: 16,
@@ -323,9 +324,9 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   emptyState: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 60,
   },
   emptyIcon: {
     fontSize: 48,
@@ -341,5 +342,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#9ca3af',
     textAlign: 'center',
+    lineHeight: 20,
   },
 });

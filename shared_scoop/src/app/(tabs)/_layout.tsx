@@ -13,35 +13,39 @@ export default function TabLayout() {
       tabBarInactiveTintColor: '#6b7280',
       tabBarStyle: {
         position: 'absolute',
-        bottom: Platform.OS === 'ios' ? 34 : 20,
-        left: 20,
-        right: 20,
+        bottom: 0,
+        left: 0,
+        right: 0,
         elevation: 0,
-        height: 64,
-        borderRadius: 32,
-        borderTopWidth: 0,
+        height: Platform.OS === 'ios' ? 88 : 72,
+        paddingBottom: Platform.OS === 'ios' ? 24 : 12,
+        paddingTop: 12,
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+        alignItems: 'center',
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(255, 255, 255, 0.1)',
         backgroundColor: 'transparent',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
-        paddingBottom: 0
+        borderWidth: 0,
       },
       tabBarItemStyle: {
-        paddingTop: Platform.OS === 'ios' ? 12 : 0
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 4,
       },
       tabBarBackground: () => (
         <BlurView 
           tint="dark" 
-          intensity={60} 
-          style={{ flex: 1, borderRadius: 32, overflow: 'hidden' }} 
+          intensity={40} 
+          style={StyleSheet.absoluteFill} 
         />
       ),
       tabBarLabelStyle: {
-        fontSize: 11,
+        fontSize: 12,
         fontWeight: '600',
-        marginBottom: 8,
       },
       tabBarIconStyle: {
-        marginTop: 4,
+        marginTop: 0,
       }
     }}>
       <Tabs.Screen 

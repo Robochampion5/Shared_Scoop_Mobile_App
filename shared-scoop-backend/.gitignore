@@ -1,0 +1,28 @@
+# Dependency Directories
+node_modules/
+
+# Environment Variables (CRITICAL SECURITY)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Vercel Cache & Configuration
+.vercel/
+
+# Firebase Service Account Keys (CRITICAL SECURITY)
+# If you dragged the downloaded JSON into this folder, this prevents it from being tracked.
+*firebase-adminsdk*.json
+*service-account*.json
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS Generated Files
+.DS_Store
+Thumbs.db

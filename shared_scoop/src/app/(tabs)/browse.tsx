@@ -201,14 +201,16 @@ const styles = StyleSheet.create({
   },
   createButton: {
     backgroundColor: '#7c3aed',
+    height: 48,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
   },
   createButtonText: {
     color: '#ffffff',
-    fontWeight: '600',
-    fontSize: 14,
+    fontWeight: '700',
+    fontSize: 15,
   },
   filterSection: {
     paddingHorizontal: 20,
@@ -273,6 +275,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 24,
     gap: 16,
+    flexGrow: 1,
   },
   card: {
     borderRadius: 16,
@@ -333,19 +336,21 @@ const styles = StyleSheet.create({
   },
   viewButton: {
     backgroundColor: '#7c3aed',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
+    height: 48,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 16,
   },
   viewButtonText: {
     color: '#ffffff',
-    fontWeight: '600',
-    fontSize: 12,
+    fontWeight: '700',
+    fontSize: 15,
   },
   emptyState: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 40,
   },
   emptyIcon: {
     fontSize: 40,
@@ -358,8 +363,9 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   emptySubtitle: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#9ca3af',
     textAlign: 'center',
+    lineHeight: 20,
   },
 });

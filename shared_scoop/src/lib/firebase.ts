@@ -11,6 +11,7 @@ import { getReactNativePersistence } from "firebase/auth";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { initializeFirestore, getFirestore, Firestore } from "firebase/firestore";
+import { getFunctions, Functions } from "firebase/functions";
 
 // Configuration
 const firebaseConfig = {
@@ -25,6 +26,7 @@ const firebaseConfig = {
 let app: FirebaseApp;
 let auth: Auth;
 let db: Firestore;
+let functions: Functions;
 
 if (getApps().length === 0) {
   // --- INITIAL BOOT ---
@@ -42,11 +44,14 @@ if (getApps().length === 0) {
   // Initialize Firestore with React Native's compatible default memory cache
   db = initializeFirestore(app, {}); 
 
+  functions = getFunctions(app);
+
 } else {
   // --- FAST REFRESH RECOVERY ---
   app = getApp();
   auth = getAuth(app);
   db = getFirestore(app);
+  functions = getFunctions(app);
 }
 
-export { app, auth, db };
+export { app, auth, db, functions };

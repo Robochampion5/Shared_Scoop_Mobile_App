@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { doc, getDoc, updateDoc, deleteDoc, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
-import { db } from '../../../lib/firebase';
+import { db, auth } from '../../../lib/firebase';
 import LiquidCard from '../../../components/LiquidCard';
 import MatrixBackground from '../../../components/MatrixBackground';
 
@@ -63,6 +63,56 @@ export default function EditCommunityScreen() {
 
     fetchCommunityAndOrder();
   }, [communityId]);
+
+  const handleLockAndRequestPayments = async () => {
+      if (isProcessing) return; // Mutex lock active
+      
+      const poolId = typeof id === 'string' ? id : (Array.isArray(id) ? id[0] : null);
+      if (!poolId) {
+          Alert.alert("Execution Error", "Critical routing failure: Pool ID is null.");
+          return;
+      }
+
+      setIsProcessing(true);
+
+      try {
+          // 1. Secure the Auth Token
+          const currentUser = auth.currentUser;
+          if (!currentUser) throw new Error("Authentication critical failure. Ghost session detected.");
+          const idToken = await currentUser.getIdToken(true);
+
+          // 2. Network Request to Vercel (Placeholder URL for now)
+         // Locate this block inside handleLockAndRequestPayments (Line 57)
+        const response = await fetch('https://shared-scoop-backend-czvvcscei-adarshsingh120308-2868s-projects.vercel.app/api/trigger-razorpay', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${idToken}`
+            },
+            body: JSON.stringify({ poolId })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Vercel endpoint rejected the payload.');
+        }
+
+          Alert.alert(
+              "Pool Locked", 
+              "MOQ met. Razorpay payment links dispatched via SMS/Email to all pledged members."
+          );
+          
+      } catch (error: unknown) {
+          console.error("Razorpay Trigger Error:", error);
+          Alert.alert(
+              "Execution Failed", 
+              error instanceof Error ? error.message : "Razorpay network trigger failed."
+          );
+      } finally {
+          setIsProcessing(false);
+      }
+  };
 
   const handleSave = async () => {
     setMoqError('');
@@ -315,7 +365,7 @@ export default function EditCommunityScreen() {
 
             {/* Submit Button */}
             <TouchableOpacity
-              style={[styles.submitButton, isProcessing && styles.disabledButton]}
+              style={[styles.submitButton, isProcessing ? styles.disabledButton : {}]}
               onPress={handleSave}
               activeOpacity={0.8}
               disabled={isProcessing}
@@ -328,13 +378,35 @@ export default function EditCommunityScreen() {
             </TouchableOpacity>
           </LiquidCard>
 
+          {/* Razorpay Trigger Action */}
+          <LiquidCard intensity={60} style={{ borderColor: 'rgba(52, 211, 153, 0.3)', borderWidth: 1 }}>
+            <View style={styles.actionZone}>
+              <Text style={styles.actionTitle}>Financial Operations</Text>
+              <Text style={styles.actionDesc}>Lock the pool to finalize wholesale requirements and instantly dispatch Razorpay payment links to all pledged members.</Text>
+              <TouchableOpacity
+                  style={[
+                      styles.actionButton,
+                      isProcessing ? styles.actionButtonDisabled : {}
+                  ]}
+                  onPress={handleLockAndRequestPayments}
+                  disabled={isProcessing}
+              >
+                  {isProcessing ? (
+                      <ActivityIndicator color="#0f0f1a" size="small" />
+                  ) : (
+                      <Text style={styles.actionButtonText}>Lock Pool & Request Payments</Text>
+                  )}
+              </TouchableOpacity>
+            </View>
+          </LiquidCard>
+
           {/* Delete Button */}
           <LiquidCard intensity={60} style={{ borderColor: 'rgba(220, 38, 38, 0.3)', borderWidth: 1 }}>
             <View style={styles.dangerZone}>
               <Text style={styles.dangerTitle}>Danger Zone</Text>
               <Text style={styles.dangerDesc}>Once you disband a community, there is no going back. Please be certain.</Text>
               <TouchableOpacity
-                style={[styles.deleteButton, isProcessing && styles.disabledButton]}
+                style={[styles.deleteButton, isProcessing ? styles.disabledButton : {}]}
                 onPress={handleDisband}
                 activeOpacity={0.8}
                 disabled={isProcessing}
@@ -416,7 +488,7 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     backgroundColor: '#7c3aed',
-    borderRadius: 12,
+    borderRadius: 16,
     height: 52,
     alignItems: 'center',
     justifyContent: 'center',
@@ -428,7 +500,37 @@ const styles = StyleSheet.create({
   submitButtonText: {
     color: '#ffffff',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
+  },
+  actionZone: {
+    gap: 8,
+  },
+  actionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#34d399',
+  },
+  actionDesc: {
+    fontSize: 13,
+    color: '#9ca3af',
+    lineHeight: 18,
+    marginBottom: 8,
+  },
+  actionButton: {
+    backgroundColor: '#34d399',
+    borderRadius: 16,
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionButtonText: {
+    color: '#0f0f1a',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  actionButtonDisabled: { 
+    opacity: 0.5, 
+    backgroundColor: '#4a4a5a' 
   },
   dangerZone: {
     gap: 8,
@@ -448,7 +550,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(220, 38, 38, 0.1)',
     borderWidth: 1,
     borderColor: 'rgba(220, 38, 38, 0.3)',
-    borderRadius: 12,
+    borderRadius: 16,
     height: 52,
     alignItems: 'center',
     justifyContent: 'center',
@@ -456,7 +558,7 @@ const styles = StyleSheet.create({
   deleteButtonText: {
     color: '#ef4444',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   loadingContainer: {
     flex: 1,
