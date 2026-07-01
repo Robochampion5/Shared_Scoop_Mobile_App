@@ -9,6 +9,7 @@ import { doc, getDoc, updateDoc, deleteDoc, collection, query, where, getDocs, o
 import { db, auth } from '../../../lib/firebase';
 import LiquidCard from '../../../components/LiquidCard';
 import MatrixBackground from '../../../components/MatrixBackground';
+import Slider from '@react-native-community/slider';
 
 export default function EditCommunityScreen() {
   const router = useRouter();
@@ -24,6 +25,9 @@ export default function EditCommunityScreen() {
   const [whatsappLink, setWhatsappLink] = useState('');
   
   const [orderId, setOrderId] = useState<string | null>(null);
+  // sliderMoq: local UI state for real-time slider feedback (never triggers Firestore directly)
+  const [sliderMoq, setSliderMoq] = useState(15);
+  // totalKgRequired: persisted string used by the Save handler and display
   const [totalKgRequired, setTotalKgRequired] = useState('');
   const [moqError, setMoqError] = useState('');
 
@@ -51,7 +55,9 @@ export default function EditCommunityScreen() {
         if (!querySnapshot.empty) {
           const orderDoc = querySnapshot.docs[0];
           setOrderId(orderDoc.id);
-          setTotalKgRequired(orderDoc.data().total_kg_required?.toString() || '');
+          const fetchedMoq = orderDoc.data().total_kg_required ?? 15;
+          setTotalKgRequired(fetchedMoq.toString());
+          setSliderMoq(Number(fetchedMoq) || 15);
         }
       } catch (error) {
         console.error('Error fetching details:', error);
@@ -81,32 +87,51 @@ export default function EditCommunityScreen() {
           if (!currentUser) throw new Error("Authentication critical failure. Ghost session detected.");
           const idToken = await currentUser.getIdToken(true);
 
-          // 2. Network Request to Vercel (Placeholder URL for now)
-         // Locate this block inside handleLockAndRequestPayments (Line 57)
-        const response = await fetch('https://shared-scoop-backend-czvvcscei-adarshsingh120308-2868s-projects.vercel.app/api/trigger-razorpay', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${idToken}`
-            },
-            body: JSON.stringify({ poolId })
-        });
+          // 2. Network Request to Vercel Microservice
+          const response = await fetch('https://shared-scoop-backend-czvvcscei-adarshsingh120308-2868s-projects.vercel.app/api/trigger-razorpay', {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${idToken}`
+              },
+              body: JSON.stringify({ poolId })
+          });
 
-        const data = await response.json();
+          // 3. Read raw text FIRST — never call .json() blindly
+          const responseText = await response.text();
+          console.log("API RAW RESPONSE:", responseText);
+          console.log("HTTP STATUS:", response.status);
 
-        if (!response.ok) {
-            throw new Error(data.error || 'Vercel endpoint rejected the payload.');
-        }
+          // 4. Detect HTML error page (Vercel 404/500 returns HTML, not JSON)
+          if (responseText.trimStart().startsWith('<')) {
+              throw new Error(
+                  `Vercel returned an HTML error page (HTTP ${response.status}). ` +
+                  `This usually means the route /api/trigger-razorpay does not exist on the deployed backend. ` +
+                  `Raw: ${responseText.substring(0, 200)}`
+              );
+          }
+
+          // 5. Safe JSON parse
+          let data: any;
+          try {
+              data = JSON.parse(responseText);
+          } catch {
+              throw new Error(`Response is not valid JSON (HTTP ${response.status}): ${responseText.substring(0, 200)}`);
+          }
+
+          if (!response.ok) {
+              throw new Error(data.error || `Vercel rejected the payload with HTTP ${response.status}.`);
+          }
 
           Alert.alert(
-              "Pool Locked", 
+              "Pool Locked",
               "MOQ met. Razorpay payment links dispatched via SMS/Email to all pledged members."
           );
           
       } catch (error: unknown) {
           console.error("Razorpay Trigger Error:", error);
           Alert.alert(
-              "Execution Failed", 
+              "Execution Failed",
               error instanceof Error ? error.message : "Razorpay network trigger failed."
           );
       } finally {
@@ -299,15 +324,42 @@ export default function EditCommunityScreen() {
             {orderId && (
               <View style={styles.fieldContainer}>
                 <Text style={styles.fieldLabel}>Active Order MOQ (kg) *</Text>
-                <TextInput
-                  style={[styles.input, isProcessing && styles.disabledInput]}
-                  placeholder="Minimum 15"
-                  placeholderTextColor="#6b7280"
-                  keyboardType="number-pad"
-                  value={totalKgRequired}
-                  onChangeText={setTotalKgRequired}
-                  editable={!isProcessing}
+                <Slider
+                  style={{ width: '100%', height: 44, marginTop: 8 }}
+                  minimumValue={15}
+                  maximumValue={100}
+                  step={5}
+                  // Bind to local state only — no Firestore write here
+                  value={sliderMoq}
+                  // Instant UI feedback: update local state on every frame
+                  onValueChange={(val) => {
+                    setSliderMoq(val);
+                    setTotalKgRequired(val.toString());
+                  }}
+                  // Firestore write ONLY when user lifts finger
+                  onSlidingComplete={async (val) => {
+                    const clamped = Math.max(15, Math.round(val));
+                    setSliderMoq(clamped);
+                    setTotalKgRequired(clamped.toString());
+                    if (orderId) {
+                      try {
+                        await updateDoc(doc(db, 'orders', orderId), {
+                          total_kg_required: clamped,
+                        });
+                        console.log('MOQ auto-saved:', clamped);
+                      } catch (e: any) {
+                        console.warn('MOQ auto-save failed:', e.message);
+                      }
+                    }
+                  }}
+                  minimumTrackTintColor="#7c3aed"
+                  maximumTrackTintColor="rgba(255,255,255,0.1)"
+                  thumbTintColor="#34d399"
+                  disabled={isProcessing}
                 />
+                <Text style={{ fontSize: 18, fontWeight: '700', color: '#f0f0ff', textAlign: 'center', marginTop: 8 }}>
+                  Current MOQ: {sliderMoq} kg
+                </Text>
               </View>
             )}
 

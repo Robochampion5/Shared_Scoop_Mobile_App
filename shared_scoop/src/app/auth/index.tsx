@@ -56,7 +56,14 @@ export default function EmailAuthScreen() {
     } catch (error: any) {
       console.error(error);
       if (error.code === 'auth/email-already-in-use') {
-        setErrorMsg('Email is already in use. Please sign in instead.');
+        // UNIFIED AUTH: Silent Login Fallback
+        try {
+          await signInWithEmailAndPassword(auth, email.trim(), password);
+          console.log("Unified Auth: Silent login successful.");
+          router.replace('/(tabs)/dashboard');
+        } catch (fallbackError: any) {
+          setErrorMsg('Email is already registered, but the password provided is incorrect.');
+        }
       } else if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
         setErrorMsg('Invalid email or password.');
       } else if (error.code === 'auth/weak-password') {

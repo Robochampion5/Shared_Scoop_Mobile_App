@@ -1,5 +1,5 @@
 export type MembershipStatus = 'pending' | 'approved' | 'rejected';
-export type OrderStatus = 'pooling' | 'ordered' | 'shipped' | 'delivered' | 'completed';
+export type OrderStatus = 'pooling' | 'locked' | 'ordered' | 'shipped' | 'delivered' | 'completed';
 
 export interface User {
   id: string;

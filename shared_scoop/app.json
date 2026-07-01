@@ -26,6 +26,12 @@
     "plugins": [
       "expo-router",
       [
+        "expo-camera",
+        {
+          "cameraPermission": "SharedScoop requires camera access for Admins to scan and verify QR Payment Tickets at the distribution hub."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#208AEF",
