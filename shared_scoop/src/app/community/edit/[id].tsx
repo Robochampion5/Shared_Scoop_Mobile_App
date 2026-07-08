@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
-  View, Text, StyleSheet, TouchableOpacity, SafeAreaView, 
+  View, Text, StyleSheet, TouchableOpacity,
   StatusBar, TextInput, ScrollView, ActivityIndicator, 
-  KeyboardAvoidingView, Platform, Alert 
+  KeyboardAvoidingView, Platform, Alert, FlatList
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { doc, getDoc, updateDoc, deleteDoc, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, deleteDoc, collection, query, where, getDocs, orderBy, onSnapshot, limit } from 'firebase/firestore';
 import { db, auth } from '../../../lib/firebase';
 import LiquidCard from '../../../components/LiquidCard';
 import MatrixBackground from '../../../components/MatrixBackground';
@@ -30,6 +31,18 @@ export default function EditCommunityScreen() {
   // totalKgRequired: persisted string used by the Save handler and display
   const [totalKgRequired, setTotalKgRequired] = useState('');
   const [moqError, setMoqError] = useState('');
+
+  // ── Approval Queue state ──────────────────────────────────────────────────
+  interface PendingMember {
+    id: string;          // community_members doc ID
+    user_id: string;
+    full_name: string;
+    email: string;
+    created_at: any;
+  }
+  const [pendingMembers, setPendingMembers] = useState<PendingMember[]>([]);
+  // Set of member doc IDs currently being mutated — disables their buttons
+  const mutatingRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (!communityId) return;
@@ -69,6 +82,104 @@ export default function EditCommunityScreen() {
 
     fetchCommunityAndOrder();
   }, [communityId]);
+
+  // ── Pending membership listener ───────────────────────────────────────────
+  // Ordered by created_at desc so newest requests surface first.
+  // No composite index required: status == + community_id == single-field each.
+  useEffect(() => {
+    if (!communityId) return;
+    const q = query(
+      collection(db, 'community_members'),
+      where('community_id', '==', communityId),
+      where('status', '==', 'pending'),
+      orderBy('created_at', 'desc'),
+      limit(50)
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const members: PendingMember[] = snap.docs.map((d) => ({
+          id: d.id,
+          user_id: d.data().user_id ?? '',
+          full_name: d.data().full_name || 'Unknown User',
+          email: d.data().email || 'No email',
+          created_at: d.data().created_at,
+        }));
+        setPendingMembers(members);
+      },
+      (err) => console.warn('[PendingQueue] Restricted:', err.message)
+    );
+    return () => unsub();
+  }, [communityId]);
+
+  // ── Approval mutation handlers ────────────────────────────────────────────
+  const handleApprove = async (memberId: string, name: string) => {
+    if (mutatingRef.current.has(memberId)) return;
+    mutatingRef.current = new Set([...mutatingRef.current, memberId]);
+    // Force re-render to disable the button immediately
+    setPendingMembers((prev) => [...prev]);
+    try {
+      await updateDoc(doc(db, 'community_members', memberId), { status: 'approved' });
+      // onSnapshot will remove the doc from the list automatically
+    } catch (e: any) {
+      Alert.alert('Approve Failed', e.message ?? 'Could not approve member.');
+    } finally {
+      mutatingRef.current = new Set([...mutatingRef.current].filter((id) => id !== memberId));
+      setPendingMembers((prev) => [...prev]);
+    }
+  };
+
+  const handleReject = async (memberId: string) => {
+    if (mutatingRef.current.has(memberId)) return;
+    mutatingRef.current = new Set([...mutatingRef.current, memberId]);
+    setPendingMembers((prev) => [...prev]);
+    try {
+      await updateDoc(doc(db, 'community_members', memberId), { status: 'rejected' });
+    } catch (e: any) {
+      Alert.alert('Reject Failed', e.message ?? 'Could not reject member.');
+    } finally {
+      mutatingRef.current = new Set([...mutatingRef.current].filter((id) => id !== memberId));
+      setPendingMembers((prev) => [...prev]);
+    }
+  };
+
+  // ── Pending member row renderer ───────────────────────────────────────────
+  const renderPendingRow = ({ item }: { item: PendingMember }) => {
+    const isMutating = mutatingRef.current.has(item.id);
+    return (
+      <View style={styles.pendingRow}>
+        <View style={styles.pendingAvatar}>
+          <Text style={styles.pendingAvatarText}>
+            {(item.full_name[0] ?? '?').toUpperCase()}
+          </Text>
+        </View>
+        <View style={styles.pendingInfo}>
+          <Text style={styles.pendingName} numberOfLines={1}>{item.full_name}</Text>
+          <Text style={styles.pendingEmail} numberOfLines={1}>{item.email}</Text>
+        </View>
+        <View style={styles.pendingActions}>
+          <TouchableOpacity
+            style={[styles.approveBtn, isMutating && styles.mutatingBtn]}
+            onPress={() => handleApprove(item.id, item.full_name)}
+            disabled={isMutating}
+            activeOpacity={0.8}
+          >
+            {isMutating
+              ? <ActivityIndicator size="small" color="#0f0f1a" />
+              : <Text style={styles.approveBtnText}>✓</Text>}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.rejectBtn, isMutating && styles.mutatingBtn]}
+            onPress={() => handleReject(item.id)}
+            disabled={isMutating}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.rejectBtnText}>✕</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
 
   const handleLockAndRequestPayments = async () => {
       if (isProcessing) return; // Mutex lock active
@@ -313,6 +424,28 @@ export default function EditCommunityScreen() {
         style={{ flex: 1 }}
       >
         <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
+
+          {/* ── Approval Queue ────────────────────────────────────────────────── */}
+          <LiquidCard intensity={60} style={{ borderColor: 'rgba(167,139,250,0.25)', borderWidth: 1 }}>
+            <View style={styles.queueHeader}>
+              <Text style={styles.queueTitle}>🕐 Pending Requests</Text>
+              <View style={styles.queueBadge}>
+                <Text style={styles.queueBadgeText}>{pendingMembers.length}</Text>
+              </View>
+            </View>
+            {pendingMembers.length === 0 ? (
+              <Text style={styles.queueEmpty}>No pending join requests.</Text>
+            ) : (
+              <FlatList
+                data={pendingMembers}
+                keyExtractor={(item) => item.id}
+                renderItem={renderPendingRow}
+                scrollEnabled={false}
+                ItemSeparatorComponent={() => <View style={styles.pendingDivider} />}
+              />
+            )}
+          </LiquidCard>
+
           {/* Form Fields */}
           <LiquidCard intensity={60}>
             {moqError !== '' && (
@@ -637,4 +770,120 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
+
+  // ── Approval Queue ──────────────────────────────────────────────────────────
+  queueHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  queueTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#a78bfa',
+  },
+  queueBadge: {
+    backgroundColor: 'rgba(124,58,237,0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(124,58,237,0.4)',
+    borderRadius: 12,
+    minWidth: 28,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  queueBadgeText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#a78bfa',
+  },
+  queueEmpty: {
+    fontSize: 13,
+    color: '#6b7280',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    paddingVertical: 8,
+  },
+  pendingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    gap: 10,
+  },
+  pendingAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(124,58,237,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(124,58,237,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  pendingAvatarText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#a78bfa',
+  },
+  pendingInfo: {
+    flex: 1,
+    gap: 2,
+    minWidth: 0,
+  },
+  pendingName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#f0f0ff',
+  },
+  pendingEmail: {
+    fontSize: 11,
+    color: '#6b7280',
+  },
+  pendingActions: {
+    flexDirection: 'row',
+    gap: 8,
+    flexShrink: 0,
+  },
+  pendingDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    marginHorizontal: 4,
+  },
+  approveBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(52,211,153,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(52,211,153,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  approveBtnText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#34d399',
+  },
+  rejectBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(239,68,68,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rejectBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#ef4444',
+  },
+  mutatingBtn: {
+    opacity: 0.5,
+  },
 });
+

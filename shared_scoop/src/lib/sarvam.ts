@@ -1,4 +1,3 @@
-// Author: Adarsh Singh | Roll No: IC2025006
 // src/lib/sarvam.ts — Sarvam AI Translation Utility
 //
 // Architectural contract:
@@ -58,11 +57,7 @@ export async function translateWithSarvam(
   text: string,
   targetLang: SarvamLangCode
 ): Promise<{ translatedText: string; latencyMs: number }> {
-  const baseUrl =
-    process.env.EXPO_PUBLIC_VERCEL_URL ??
-    'https://shared-scoop-backend-czvvcscei-adarshsingh120308-2868s-projects.vercel.app';
 
-  const endpoint = `${baseUrl}/api/translate`;
 
   // Hard client-side timeout — independent of the server's AbortController
   const controller = new AbortController();
@@ -74,7 +69,8 @@ export async function translateWithSarvam(
   let rawText: string;
 
   try {
-    response = await fetch(endpoint, {
+    // ⚠️ HACKATHON BYPASS: Hitting Sarvam directly. Remove after demo!
+    response = await fetch(`${process.env.EXPO_PUBLIC_VERCEL_URL}/api/translate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, target_language: targetLang }),

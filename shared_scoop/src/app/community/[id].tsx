@@ -1,4 +1,3 @@
-// Author: Adarsh Singh | Roll No: IC2025006
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,

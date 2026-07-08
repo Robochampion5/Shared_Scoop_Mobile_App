@@ -1,4 +1,3 @@
-// Author: Adarsh Singh | Roll No: IC2025006
 // LiquidCard.tsx — High-fidelity Neo-morphic wrapper pushing physics to the UI thread.
 //
 // Architecture:

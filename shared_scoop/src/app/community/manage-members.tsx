@@ -1,4 +1,3 @@
-// Author: Adarsh Singh | Roll No: IC2025006
 // ManageMembers — Admin approval pipeline for SharedScoop community memberships.
 //
 // Architecture decisions:
@@ -34,12 +33,12 @@ import {
   FlatList,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   StatusBar,
   ActivityIndicator,
   Alert,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { doc, getDoc, updateDoc, deleteDoc, collection, query, where, onSnapshot, orderBy, limit } from 'firebase/firestore';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';

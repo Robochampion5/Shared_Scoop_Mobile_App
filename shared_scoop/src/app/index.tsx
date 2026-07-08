@@ -1,4 +1,3 @@
-// Author: Adarsh Singh | Roll No: IC2025006
 import { useEffect, useState } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';

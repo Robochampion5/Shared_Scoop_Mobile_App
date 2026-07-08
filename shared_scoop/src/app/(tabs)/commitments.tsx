@@ -1,14 +1,13 @@
-// Author: Adarsh Singh | Roll No: IC2025006
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   FlatList,
   ActivityIndicator,
   StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { collection, query, where, onSnapshot, getDoc, doc } from 'firebase/firestore';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';

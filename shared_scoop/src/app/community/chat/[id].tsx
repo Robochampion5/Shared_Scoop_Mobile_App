@@ -1,4 +1,3 @@
-// Author: Adarsh Singh | Roll No: IC2025006
 //
 // ⚠️  FIRESTORE COMPOSITE INDEX REQUIRED
 // The query in this file chains:

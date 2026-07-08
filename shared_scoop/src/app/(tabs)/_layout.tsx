@@ -1,4 +1,3 @@
-// Author: Adarsh Singh | Roll No: IC2025006
 import React from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Tabs, useRouter } from 'expo-router';

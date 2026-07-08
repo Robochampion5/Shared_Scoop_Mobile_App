@@ -1,4 +1,3 @@
-// Author: Adarsh Singh | Roll No: IC2025006
 // src/app/debug/translation.tsx — Sarvam AI Translation Verification Engine
 //
 // PURPOSE: Developer/QA screen to:
@@ -20,13 +19,13 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
-  SafeAreaView,
   StatusBar,
   KeyboardAvoidingView,
   Platform,
   Alert,
   Pressable,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import {
   translateWithSarvam,

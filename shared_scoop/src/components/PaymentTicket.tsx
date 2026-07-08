@@ -1,4 +1,3 @@
-// Author: Adarsh Singh | Roll No: IC2025006
 // PaymentTicket.tsx — Liquid Glass QR payment credential card
 // Renders a denormalized pledge record as a scannable QR ticket.
 // The QR payload is a stringified JSON object so validators can

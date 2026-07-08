@@ -33,12 +33,11 @@ const REQUEST_TIMEOUT_MS = 10_000;
 // ─── Handler ──────────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   // ── Preflight (CORS) ────────────────────────────────────────────────────────
-  if (req.method === 'OPTIONS') {
-    return res.status(200).set(CORS_HEADERS).end();
-  }
-
-  // Inject CORS on all responses from this point forward
   Object.entries(CORS_HEADERS).forEach(([k, v]) => res.setHeader(k, v));
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
 
   // ── Method guard ────────────────────────────────────────────────────────────
   if (req.method !== 'POST') {
@@ -79,17 +78,15 @@ export default async function handler(req, res) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-          // Sarvam also accepts API-Subscription-Key header — Bearer is the recommended path
+          'api-subscription-key': apiKey,
         },
         body: JSON.stringify({
           input: text.trim(),
-          source_language_code: 'auto',   // Let Sarvam auto-detect the source language
+          source_language_code: 'en-IN',
           target_language_code: targetLang,
           speaker_gender: 'Male',
           mode: 'formal',
           model: 'mayura:v1',
-          enable_preprocessing: true,
         }),
         signal: controller.signal,
       });

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, TextInput, StyleSheet, SafeAreaView, StatusBar, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, TextInput, StyleSheet, StatusBar, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '../../lib/firebase';

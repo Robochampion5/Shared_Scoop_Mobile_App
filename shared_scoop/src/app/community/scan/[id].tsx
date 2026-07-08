@@ -1,4 +1,3 @@
-// Author: Adarsh Singh | Roll No: IC2025006
 // scan/[id].tsx — Admin QR Fulfillment Scanner
 //
 // SECURITY MODEL:
@@ -14,13 +13,13 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   StatusBar,
   Alert,
   ActivityIndicator,
   Dimensions,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useLocalSearchParams, useRouter } from 'expo-router';
