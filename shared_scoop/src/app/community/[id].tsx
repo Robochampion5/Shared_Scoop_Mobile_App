@@ -5,7 +5,6 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   StatusBar,
   ActivityIndicator,
   ScrollView,
@@ -14,6 +13,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import Slider from '@react-native-community/slider';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -153,13 +153,16 @@ export default function CommunityHubScreen() {
     return () => unsub();
   }, [communityId]);
 
-  // ── Active order listener
+  // ── Active order listener (Optimized)
+  // RATIONALE: where('status', '==', 'pooling') + orderBy('created_at') requires a
+  // composite index and collapses the query result to empty the moment the admin
+  // locks the pool. We fetch the single most-recent order universally — the
+  // status field is available on the document for conditional rendering.
   useEffect(() => {
     if (!communityId) return;
     const q = query(
       collection(db, 'orders'),
       where('community_id', '==', communityId),
-      where('status', '==', 'pooling'),
       orderBy('created_at', 'desc'),
       limit(1)
     );
@@ -169,7 +172,6 @@ export default function CommunityHubScreen() {
         if (!snap.empty) {
           const orderData = { id: snap.docs[0].id, ...snap.docs[0].data() } as Order;
           setOrder(orderData);
-          // Seed localMoq from Firestore on first load / external change
           setLocalMoq(Number(orderData.total_kg_required) || 15);
         } else {
           setOrder(null);
@@ -922,34 +924,47 @@ export default function CommunityHubScreen() {
           {order ? (
             <>
               <GlassPanel>
-                <Text style={styles.sectionTitle}>🎯 Active Pool</Text>
+                <Text style={styles.sectionTitle}>
+                  🎯 {order.status === 'locked' ? 'Locked Pool' : 'Active Pool'}
+                </Text>
                 {renderProgressBar()}
               </GlassPanel>
-              <GlassPanel>
-                <Text style={styles.sectionTitle}>Pledge Protein</Text>
-                <Text style={styles.communityDesc}>Enter how many kg you want to commit to this group buy.</Text>
-                <View style={styles.pledgeInputRow}>
-                  <TextInput
-                    style={styles.pledgeInput}
-                    placeholder="e.g. 2"
-                    placeholderTextColor="#6b7280"
-                    keyboardType="number-pad"
-                    value={pledgeKg}
-                    onChangeText={setPledgeKg}
-                  />
-                  <Text style={styles.pledgeUnit}>kg</Text>
-                </View>
-                <TouchableOpacity
-                  style={[styles.pledgeBtn, pledgeLoading && { opacity: 0.6 }]}
-                  onPress={handlePledge}
-                  disabled={pledgeLoading}
-                  activeOpacity={0.8}
-                >
-                  {pledgeLoading
-                    ? <ActivityIndicator color="#0f0f1a" />
-                    : <Text style={styles.pledgeBtnText}>Pledge Protein</Text>}
-                </TouchableOpacity>
-              </GlassPanel>
+
+              {order.status === 'locked' ? (
+                <GlassPanel>
+                  <Text style={styles.sectionTitle}>🔒 Pool Closed</Text>
+                  <Text style={styles.communityDesc}>
+                    This pool has been locked by the admin to finalize wholesale requirements.
+                    Check your SMS for the Razorpay checkout link.
+                  </Text>
+                </GlassPanel>
+              ) : (
+                <GlassPanel>
+                  <Text style={styles.sectionTitle}>Pledge Protein</Text>
+                  <Text style={styles.communityDesc}>Enter how many kg you want to commit to this group buy.</Text>
+                  <View style={styles.pledgeInputRow}>
+                    <TextInput
+                      style={styles.pledgeInput}
+                      placeholder="e.g. 2"
+                      placeholderTextColor="#6b7280"
+                      keyboardType="number-pad"
+                      value={pledgeKg}
+                      onChangeText={setPledgeKg}
+                    />
+                    <Text style={styles.pledgeUnit}>kg</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.pledgeBtn, pledgeLoading && { opacity: 0.6 }]}
+                    onPress={handlePledge}
+                    disabled={pledgeLoading}
+                    activeOpacity={0.8}
+                  >
+                    {pledgeLoading
+                      ? <ActivityIndicator color="#0f0f1a" />
+                      : <Text style={styles.pledgeBtnText}>Pledge Protein</Text>}
+                  </TouchableOpacity>
+                </GlassPanel>
+              )}
             </>
           ) : (
             <GlassPanel>

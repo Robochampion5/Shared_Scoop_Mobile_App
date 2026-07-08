@@ -6,10 +6,11 @@ import {
   TouchableOpacity,
   FlatList,
   StyleSheet,
-  SafeAreaView,
   StatusBar,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
@@ -76,9 +77,16 @@ export default function DashboardScreen() {
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      // The Bouncer in index.tsx will automatically detect this and route you to /auth
-    } catch (error) {
-      console.error("Error signing out: ", error);
+      // Explicit navigation — bypasses the Bouncer's async onAuthStateChanged
+      // detection lag so the user sees /auth immediately on button press.
+      router.replace('/auth');
+    } catch (error: any) {
+      console.error('Sign out error:', error);
+      Alert.alert(
+        'Sign Out Failed',
+        error?.message ?? 'Could not sign out. Please try again.',
+        [{ text: 'OK' }]
+      );
     }
   };
 
